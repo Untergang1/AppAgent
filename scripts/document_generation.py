@@ -105,26 +105,27 @@ with open(record_path, "r") as infile:
         print_with_color(f"Waiting for GPT-4V to generate documentation for the element {resource_id}", "yellow")
         content = [
             {
-                "type": "text",
-                "text": prompt
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": img_before
+                        }
+                    },
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": img_after
+                        }
+                    }
+                ]
             },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{img_before}"
-                }
-            },
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{img_after}"
-                }
-            }
         ]
 
         rsp = ask_gpt4v(content)
         if "error" not in rsp:
-            msg = rsp["choices"][0]["message"]["content"]
+            msg = rsp['candidates'][0]['content']['parts'][0]['text']
             doc_content[action_type] = msg
             with open(log_path, "a") as logfile:
                 log_item = {"step": i, "prompt": prompt, "image_before": f"{demo_name}_{i}.png",

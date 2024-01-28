@@ -191,15 +191,16 @@ while round_count < configs["MAX_ROUNDS"]:
     prompt = re.sub(r"<last_act>", last_act, prompt)
     content = [
         {
-            "type": "text",
-            "text": prompt
+            "parts": [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64_img
+                    }
+                }
+            ]
         },
-        {
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/jpeg;base64,{base64_img}"
-            }
-        }
     ]
     print_with_color("Thinking about what to do in the next step...", "yellow")
     rsp = ask_gpt4v(content)

@@ -113,15 +113,16 @@ while round_count < configs["MAX_ROUNDS"]:
     base64_img_before = encode_image(os.path.join(task_dir, f"{round_count}_before_labeled.png"))
     content = [
         {
-            "type": "text",
-            "text": prompt
+            "parts": [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64_img_before
+                    }
+                }
+            ]
         },
-        {
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/jpeg;base64,{base64_img_before}"
-            }
-        }
     ]
     print_with_color("Thinking about what to do in the next step...", "yellow")
     rsp = ask_gpt4v(content)
@@ -204,21 +205,22 @@ while round_count < configs["MAX_ROUNDS"]:
 
     content = [
         {
-            "type": "text",
-            "text": prompt
+            "parts": [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64_img_before
+                    }
+                },
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64_img_after
+                    }
+                }
+            ]
         },
-        {
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/jpeg;base64,{base64_img_before}"
-            }
-        },
-        {
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/jpeg;base64,{base64_img_after}"
-            }
-        }
     ]
     print_with_color("Reflecting on my previous action...", "yellow")
     rsp = ask_gpt4v(content)

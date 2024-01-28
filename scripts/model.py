@@ -5,38 +5,26 @@ from config import load_config
 from utils import print_with_color
 
 configs = load_config()
-
+configs["GEMINI_API_BASE"] = f"https://generativelanguage.googleapis.com/v1/models/{configs['GEMINI_API_MODEL']}:generateContent?key={configs['GEMINI_API_KEY']}"
 
 def ask_gpt4v(content):
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {configs['OPENAI_API_KEY']}"
     }
     payload = {
-        "model": configs["OPENAI_API_MODEL"],
-        "messages": [
-            {
-                "role": "user",
-                "content": content
-            }
-        ],
-        "temperature": configs["TEMPERATURE"],
-        "max_tokens": configs["MAX_TOKENS"]
+        "contents": content,
+        "generationConfig": {
+            "temperature": configs["TEMPERATURE"],
+            "maxOutputTokens": configs["MAX_TOKENS"]
+        }
     }
-    response = requests.post(configs["OPENAI_API_BASE"], headers=headers, json=payload)
-    if "error" not in response.json():
-        usage = response.json()["usage"]
-        prompt_tokens = usage["prompt_tokens"]
-        completion_tokens = usage["completion_tokens"]
-        print_with_color(f"Request cost is "
-                         f"${'{0:.2f}'.format(prompt_tokens / 1000 * 0.01 + completion_tokens / 1000 * 0.03)}",
-                         "yellow")
+    response = requests.post(configs["GEMINI_API_BASE"], headers=headers, json=payload)
     return response.json()
 
 
 def parse_explore_rsp(rsp):
     try:
-        msg = rsp["choices"][0]["message"]["content"]
+        msg = rsp['candidates'][0]['content']['parts'][0]['text']
         observation = re.findall(r"Observation: (.*?)$", msg, re.MULTILINE)[0]
         think = re.findall(r"Thought: (.*?)$", msg, re.MULTILINE)[0]
         act = re.findall(r"Action: (.*?)$", msg, re.MULTILINE)[0]
@@ -81,7 +69,7 @@ def parse_explore_rsp(rsp):
 
 def parse_grid_rsp(rsp):
     try:
-        msg = rsp["choices"][0]["message"]["content"]
+        msg = rsp['candidates'][0]['content']['parts'][0]['text']
         observation = re.findall(r"Observation: (.*?)$", msg, re.MULTILINE)[0]
         think = re.findall(r"Thought: (.*?)$", msg, re.MULTILINE)[0]
         act = re.findall(r"Action: (.*?)$", msg, re.MULTILINE)[0]
@@ -127,7 +115,7 @@ def parse_grid_rsp(rsp):
 
 def parse_reflect_rsp(rsp):
     try:
-        msg = rsp["choices"][0]["message"]["content"]
+        msg = rsp['candidates'][0]['content']['parts'][0]['text']
         decision = re.findall(r"Decision: (.*?)$", msg, re.MULTILINE)[0]
         think = re.findall(r"Thought: (.*?)$", msg, re.MULTILINE)[0]
         print_with_color("Decision:", "yellow")
