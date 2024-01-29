@@ -1,4 +1,4 @@
-GEMINI_API_KEY: "AIzaSyA7RrLxCwmAPcU0WHLFRWiMOOXpbaaOSgU"
+GEMINI_API_KEY: ""
 GEMINI_API_MODEL: "gemini-pro-vision"
 MAX_TOKENS: 300  # The max token limit for the response completion
 TEMPERATURE: 0.0  # The temperature of the model: the lower the value, the more consistent the output of the model
