@@ -7,10 +7,10 @@ MAX_TOKENS: 300  # The max token limit for the response completion
 TEMPERATURE: 0.0  # The temperature of the model: the lower the value, the more consistent the output of the model
 REQUEST_INTERVAL: 5  # Time in seconds between consecutive GPT-4V requests
 
-DASHSCOPE_API_KEY: "sk-fd61b9bff9534ad09499dcbdceeecc6f"  # The dashscope API key that gives you access to Qwen-VL model
+DASHSCOPE_API_KEY: "sk-"  # The dashscope API key that gives you access to Qwen-VL model
 QWEN_MODEL: "qwen-vl-max"
 
-GEMINI_API_KEY: "AIzaSyA7RrLxCwmAPcU0WHLFRWiMOOXpbaaOSgU"
+GEMINI_API_KEY: ""
 GEMINI_MODEL: "gemini-pro-vision"
 
 ANDROID_SCREENSHOT_DIR: "/sdcard"  # Set the directory on your Android device to store the intermediate screenshots. Make sure the directory EXISTS on your phone!
