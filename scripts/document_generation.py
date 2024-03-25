@@ -7,7 +7,7 @@ import sys
 import time
 
 import prompts
-from config import load_config
+from Trash.config import load_config
 from model import OpenAIModel, QwenModel
 from utils import print_with_color
 

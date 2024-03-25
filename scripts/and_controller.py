@@ -1,9 +1,10 @@
 import os
 import subprocess
 import xml.etree.ElementTree as ET
+import sys
 
-from config import load_config
-from utils import print_with_color
+from Trash.config import load_config
+from .utils import print_with_color
 
 
 configs = load_config()
@@ -17,7 +18,6 @@ class AndroidElement:
 
 
 def execute_adb(adb_command):
-    # print(adb_command)
     result = subprocess.run(adb_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode == 0:
         return result.stdout.strip()
@@ -85,6 +85,19 @@ def traverse_tree(xml_path, elem_list, attrib, add_index=False):
         if event == 'end':
             path.pop()
 
+def chose_device():
+    device_list = list_all_devices()
+    if not device_list:
+        print_with_color("ERROR: No device found!", "red")
+        sys.exit()
+    print_with_color(f"List of devices attached:\n{str(device_list)}", "yellow")
+    if len(device_list) == 1:
+        device = device_list[0]
+        print_with_color(f"Device selected: {device}", "yellow")
+    else:
+        print_with_color("Please choose the Android device to start demo by entering its ID:", "blue")
+        device = input()
+    return device
 
 class AndroidController:
     def __init__(self, device):
@@ -133,6 +146,12 @@ class AndroidController:
         adb_command = f"adb -s {self.device} shell input keyevent KEYCODE_BACK"
         ret = execute_adb(adb_command)
         return ret
+
+    def back_home(self):
+        adb_command = f"adb -s {self.device} shell input keyevent KEYCODE_HOME"
+        ret = execute_adb(adb_command)
+        return ret
+
 
     def tap(self, x, y):
         adb_command = f"adb -s {self.device} shell input tap {x} {y}"

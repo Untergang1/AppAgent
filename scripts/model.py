@@ -5,8 +5,11 @@ from http import HTTPStatus
 
 import requests
 import dashscope
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from PIL import Image
 
-from utils import print_with_color, encode_image
+from .utils import print_with_color, encode_image
 
 
 class BaseModel:
@@ -97,21 +100,114 @@ class QwenModel(BaseModel):
         else:
             return False, response.message
 
+class GeminiModel(BaseModel):
+    def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
+        super().__init__()
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.base_url = f"https://generativelanguage.googleapis.com/v1/models/{self.model}:generateContent?key={self.api_key}"
 
-def parse_explore_rsp(rsp):
+    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
+        parts=[
+            {"text": prompt}
+        ]
+        for img in images:
+            base64_img = encode_image(img)
+            parts.append({
+                "inline_data": {
+                    "mime_type": "image/jpeg",
+                    "data": base64_img
+                    }
+            })
+        headers = {
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "contents": [{"parts":parts}],
+            "generationConfig": {
+                "temperature": self.temperature,
+                "maxOutputTokens": self.max_tokens
+            }
+        }
+
+        response = requests.post(self.base_url, headers=headers, json=payload).json()
+        if "error" not in response:
+            return True, response['candidates'][0]['content']['parts'][0]['text']
+        else:
+            return False, response["error"]
+
+class IMPModel(BaseModel):
+    def __init__(self, temperature: float = 0, max_tokens: int = 500):
+        super().__init__()
+        torch.set_default_device("cuda")
+
+        model = AutoModelForCausalLM.from_pretrained(
+            "MILVLG/imp-v1-3b",
+            torch_dtype=torch.float16,
+            device_map="auto",
+            trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained("MILVLG/imp-v1-3b", trust_remote_code=True)
+        self.model = model
+        self.tokenizer = tokenizer
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
+        sys_prompt="""You are an agent that is trained to complete certain tasks on a smartphone. You will be
+given a screenshot of a smartphone app. The interactive UI elements on the screenshot are labeled with numeric tags 
+starting from 1. """
+        prompt = sys_prompt + len(images)*"\nimage:<image>" + prompt
+
+        input_ids = self.tokenizer(prompt, return_tensors='pt').input_ids
+        images=[Image.open(image) for image in images]
+        image_tensors = [self.model.image_preprocess(image) for image in images]
+
+        output_ids = self.model.generate(
+            input_ids,
+            max_new_tokens=self.max_tokens,
+            images=image_tensors,
+            use_cache=True)[0]
+        message = self.tokenizer.decode(output_ids[input_ids.shape[1]:], skip_special_tokens=True).strip()
+        return True, message
+
+def chose_model(model,configs):
+    mllm=None
+    if model == "OpenAI":
+        mllm = OpenAIModel(base_url=configs["OPENAI_API_BASE"],
+                           api_key=configs["OPENAI_API_KEY"],
+                           model=configs["OPENAI_API_MODEL"],
+                           temperature=configs["TEMPERATURE"],
+                           max_tokens=configs["MAX_TOKENS"])
+    elif model == "Qwen":
+        mllm = QwenModel(api_key=configs["DASHSCOPE_API_KEY"],
+                         model=configs["QWEN_MODEL"])
+    elif model == "IMP":
+        mllm = IMPModel()
+    elif model == "Gemini":
+        mllm = GeminiModel(api_key=configs["GEMINI_API_KEY"],
+                           model=configs["GEMINI_MODEL"],
+                           temperature=configs["TEMPERATURE"],
+                           max_tokens=configs["MAX_TOKENS"])
+    return mllm
+
+
+def parse_explore_rsp(rsp, detail=False):
     try:
         observation = re.findall(r"Observation: (.*?)$", rsp, re.MULTILINE)[0]
         think = re.findall(r"Thought: (.*?)$", rsp, re.MULTILINE)[0]
         act = re.findall(r"Action: (.*?)$", rsp, re.MULTILINE)[0]
         last_act = re.findall(r"Summary: (.*?)$", rsp, re.MULTILINE)[0]
-        print_with_color("Observation:", "yellow")
-        print_with_color(observation, "magenta")
-        print_with_color("Thought:", "yellow")
-        print_with_color(think, "magenta")
-        print_with_color("Action:", "yellow")
-        print_with_color(act, "magenta")
-        print_with_color("Summary:", "yellow")
-        print_with_color(last_act, "magenta")
+        if detail:
+            print_with_color("Observation:", "yellow")
+            print_with_color(observation, "magenta")
+            print_with_color("Thought:", "yellow")
+            print_with_color(think, "magenta")
+            print_with_color("Action:", "yellow")
+            print_with_color(act, "magenta")
+            print_with_color("Summary:", "yellow")
+            print_with_color(last_act, "magenta")
         if "FINISH" in act:
             return ["FINISH"]
         act_name = act.split("(")[0]
@@ -142,20 +238,21 @@ def parse_explore_rsp(rsp):
         return ["ERROR"]
 
 
-def parse_grid_rsp(rsp):
+def parse_grid_rsp(rsp, detail=False):
     try:
         observation = re.findall(r"Observation: (.*?)$", rsp, re.MULTILINE)[0]
         think = re.findall(r"Thought: (.*?)$", rsp, re.MULTILINE)[0]
         act = re.findall(r"Action: (.*?)$", rsp, re.MULTILINE)[0]
         last_act = re.findall(r"Summary: (.*?)$", rsp, re.MULTILINE)[0]
-        print_with_color("Observation:", "yellow")
-        print_with_color(observation, "magenta")
-        print_with_color("Thought:", "yellow")
-        print_with_color(think, "magenta")
-        print_with_color("Action:", "yellow")
-        print_with_color(act, "magenta")
-        print_with_color("Summary:", "yellow")
-        print_with_color(last_act, "magenta")
+        if detail:
+            print_with_color("Observation:", "yellow")
+            print_with_color(observation, "magenta")
+            print_with_color("Thought:", "yellow")
+            print_with_color(think, "magenta")
+            print_with_color("Action:", "yellow")
+            print_with_color(act, "magenta")
+            print_with_color("Summary:", "yellow")
+            print_with_color(last_act, "magenta")
         if "FINISH" in act:
             return ["FINISH"]
         act_name = act.split("(")[0]
