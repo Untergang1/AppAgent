@@ -76,18 +76,21 @@ You should call this function when you find the element you want to interact wit
 other elements with numeric tags cannot help with the task. The function will bring up a grid overlay to divide the 
 smartphone screen into small areas and this will give you more freedom to choose any part of the screen to tap, long 
 press, or swipe.
+
 <ui_document>
 The task you need to complete is to <task_description>. Your past actions to proceed with this task are summarized as 
 follows: <last_act>
 Now, given the documentation and the following labeled screenshot, you need to think and call the function needed to 
-proceed with the task. Your output should include three parts in the given format:
+proceed with the task. Your output should include four parts in the given format:
+
 Observation: <Describe what you observe in the image>
 Thought: <To complete the given task, what is the next step I should do>
 Action: <The function call with the correct parameters to proceed with the task. If you believe the task is completed or 
 there is nothing to be done, you should output FINISH. You cannot output anything else except a function call or FINISH 
 in this field.>
-Summary: <Summarize your past actions along with your latest action in one or two sentences. Do not include the numeric 
-tag in your summary>
+Summary: <Summarize your past actions along with your current action in one or two sentences. Do not include the numeric 
+tag in your summary.>
+
 You can only take one action at a time, so please directly call the function."""
 
 task_template_grid = """You are an agent that is trained to perform some basic tasks on a smartphone. You will be given 
@@ -179,6 +182,35 @@ Summary: <Summarize your past actions along with your latest action in one or tw
 tag in your summary>
 You can only take one action at a time, so please directly call the function."""
 
+self_explore_task_template_text = """You are an agent that is trained to perform some basic tasks on a smartphone. You will be given an xml describing the smartphone screen.
+
+First, you need to generate the Observation and Thought.
+Observation: You need to briefly describe the current screenshot. If there are previous operations, you need to briefly describe the previous operations and the screenshot changes.
+Thought: Based on Observation, You need to think about what you need to do next in order to complete the instruction.
+
+Then, you need to generate the action based on the Thought. You can perform the following 4 function:
+1. Click (bounds: List[int]) 
+Return with the bounds of the element(from the XML).Format as [x1, y1][x2, y2].
+2. Swip (direction: str)
+Choose one direction from the four: up, down, left, or right.
+3. Type (text: str)
+Text is what you want to type. Make sure you have clicked on the input box before typing.
+4. Stop()
+If you think you have completed the instruction, then you can stop the whole process.
+
+xml:
+{xml}
+
+Task:{task}
+
+Your past actions to proceed with this task are summarized as follows: {last_action}
+Your output should include four parts in the given format:
+
+Observation: <Describe what you observe in the screen>
+Thought: <To complete the given task, what is the next step I should do>
+Action: <The first function you need to take,with the correct parameter in parentheses>
+Summary: <Summarize your past actions along with your current action in one or two sentences>"""
+
 self_explore_reflect_template = """I will give you screenshots of a mobile app before and after <action> the UI 
 element labeled with the number '<ui_element>' on the first screenshot. The numeric tag of each element is located at 
 the center of the element. The action of <action> this UI element was described as follows:
@@ -220,4 +252,7 @@ can use pronouns such as "the UI element" to refer to the element. Your output s
 Decision: SUCCESS
 Thought: <explain why you think the action successfully moved the task forward>
 Documentation: <describe the function of the UI element>
+"""
+
+supervisor_template = """you are a supervisor 
 """

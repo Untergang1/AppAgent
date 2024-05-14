@@ -11,7 +11,7 @@ from .and_controller import chose_device, AndroidController, traverse_tree
 from .model import parse_explore_rsp, parse_grid_rsp, chose_model
 from .utils import print_with_color, draw_bbox_multi, draw_grid
 
-def task_excutor(args, configs):
+def task_executor(args, configs):
     mllm = chose_model(args["model"],configs)
     if mllm == None:
         print_with_color(f"ERROR: Unsupported model type {args['model']}!", "red")
@@ -203,6 +203,179 @@ def task_excutor(args, configs):
             res = res[:-1]
             if act_name == "tap":
                 _, area = res
+                tl, br = elem_list[area - 1].bbox
+                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+                ret = controller.tap(x, y)
+                if ret == "ERROR":
+                    print_with_color("ERROR: tap execution failed", "red")
+                    break
+            elif act_name == "text":
+                _, input_str = res
+                ret = controller.text(input_str)
+                if ret == "ERROR":
+                    print_with_color("ERROR: text execution failed", "red")
+                    break
+            elif act_name == "long_press":
+                _, area = res
+                tl, br = elem_list[area - 1].bbox
+                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+                ret = controller.long_press(x, y)
+                if ret == "ERROR":
+                    print_with_color("ERROR: long press execution failed", "red")
+                    break
+            elif act_name == "swipe":
+                _, area, swipe_dir, dist = res
+                tl, br = elem_list[area - 1].bbox
+                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+                ret = controller.swipe(x, y, swipe_dir, dist)
+                if ret == "ERROR":
+                    print_with_color("ERROR: swipe execution failed", "red")
+                    break
+            elif act_name == "grid":
+                grid_on = True
+            elif act_name == "tap_grid" or act_name == "long_press_grid":
+                _, area, subarea = res
+                x, y = area_to_xy(area, subarea)
+                if act_name == "tap_grid":
+                    ret = controller.tap(x, y)
+                    if ret == "ERROR":
+                        print_with_color("ERROR: tap execution failed", "red")
+                        break
+                else:
+                    ret = controller.long_press(x, y)
+                    if ret == "ERROR":
+                        print_with_color("ERROR: tap execution failed", "red")
+                        break
+            elif act_name == "swipe_grid":
+                _, start_area, start_subarea, end_area, end_subarea = res
+                start_x, start_y = area_to_xy(start_area, start_subarea)
+                end_x, end_y = area_to_xy(end_area, end_subarea)
+                ret = controller.swipe_precise((start_x, start_y), (end_x, end_y))
+                if ret == "ERROR":
+                    print_with_color("ERROR: tap execution failed", "red")
+                    break
+            if act_name != "grid":
+                grid_on = False
+            time.sleep(configs["REQUEST_INTERVAL"])
+        else:
+            print_with_color(rsp, "red")
+            break
+
+    if task_complete:
+        return True, "success"
+    else:
+        if round_count == configs["MAX_ROUNDS"]:
+            msg = "max_rounds"
+        else:
+            msg = "error"
+        return False, msg
+
+def task_executor_text_only(args, configs):
+    mllm = chose_model(args["model"],configs)
+    if mllm == None:
+        print_with_color(f"ERROR: Unsupported model type {args['model']}!", "red")
+        sys.exit()
+
+    app = args["app"]
+    root_dir = args["root_dir"]
+    detail = args["detail"]
+
+    app_dir = os.path.join(os.path.join(root_dir, "apps"), app)
+    work_dir = os.path.join(root_dir, "tasks")
+    if not os.path.exists(work_dir):
+        os.mkdir(work_dir)
+    auto_docs_dir = os.path.join(app_dir, "auto_docs")
+    demo_docs_dir = os.path.join(app_dir, "demo_docs")
+    task_timestamp = int(time.time())
+    dir_name = datetime.datetime.fromtimestamp(task_timestamp).strftime(f"task_{app}_%Y-%m-%d_%H-%M-%S")
+    task_dir = os.path.join(work_dir, dir_name)
+    os.mkdir(task_dir)
+    log_path = os.path.join(task_dir, f"log_{app}_{dir_name}.txt")
+
+    no_doc = args["nodoc"]
+    if no_doc:
+        print_with_color("proceed without docs.", "yellow")
+    elif not os.path.exists(auto_docs_dir) and not os.path.exists(demo_docs_dir):
+        print_with_color(f"No documentations found for the app {app}. Do you want to proceed with no docs? Enter y or n",
+                         "red")
+        user_input = ""
+        while user_input != "y" and user_input != "n":
+            user_input = input().lower()
+        if user_input == "y":
+            no_doc = True
+        else:
+            sys.exit()
+    elif os.path.exists(auto_docs_dir) and os.path.exists(demo_docs_dir):
+        print_with_color(f"The app {app} has documentations generated from both autonomous exploration and human "
+                         f"demonstration. Which one do you want to use? Type 1 or 2.\n1. Autonomous exploration\n2. Human "
+                         f"Demonstration",
+                         "blue")
+        user_input = ""
+        while user_input != "1" and user_input != "2":
+            user_input = input()
+        if user_input == "1":
+            docs_dir = auto_docs_dir
+        else:
+            docs_dir = demo_docs_dir
+    elif os.path.exists(auto_docs_dir):
+        print_with_color(f"Documentations generated from autonomous exploration were found for the app {app}. The doc base "
+                         f"is selected automatically.", "yellow")
+        docs_dir = auto_docs_dir
+    else:
+        print_with_color(f"Documentations generated from human demonstration were found for the app {app}. The doc base is "
+                         f"selected automatically.", "yellow")
+        docs_dir = demo_docs_dir
+
+    device = args["device"]
+    if not device:
+        device = chose_device()
+
+    controller = AndroidController(device)
+    width, height = controller.get_device_size()
+    if not width and not height:
+        print_with_color("ERROR: Invalid device size!", "red")
+        sys.exit()
+    if detail:
+        print_with_color(f"Screen resolution of {device}: {width}x{height}", "yellow")
+
+    task_desc = args["desc"]
+    if not task_desc:
+        print_with_color("Please enter the description of the task you want me to complete in a few sentences:", "blue")
+        task_desc = input()
+
+    round_count = 0
+    last_act = "None"
+    task_complete = False
+    rows, cols = 0, 0
+    template = prompts.self_explore_task_template_text
+
+    while round_count < configs["MAX_ROUNDS"]:
+        # grid_on=True
+        round_count += 1
+        print_with_color(f"Round {round_count}", "yellow")
+        xml_path = controller.get_xml(f"{dir_name}_{round_count}", task_dir)
+        with open(xml_path, 'r') as file:
+            xml = file.read()
+        prompt = query = template.format(xml=xml, task=task_desc, last_act=last_act)
+        if detail:
+            print_with_color("Thinking about what to do in the next step...", "yellow")
+        status, rsp = mllm.get_model_response(prompt)
+        if status:
+            with open(log_path, "a") as logfile:
+                log_item = {"step": round_count, "prompt": prompt, "image": f"{dir_name}_{round_count}_labeled.png",
+                            "response": rsp}
+                logfile.write(json.dumps(log_item) + "\n")
+            res = parse_explore_rsp(rsp, detail)
+            act_name = res[0]
+            if act_name == "Stop":
+                task_complete = True
+                break
+            if act_name == "ERROR":
+                break
+            last_act = res[-1]
+            res = res[:-1]
+            if act_name == "Click":
+                _, bounds = res
                 tl, br = elem_list[area - 1].bbox
                 x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
                 ret = controller.tap(x, y)

@@ -1,5 +1,6 @@
 import subprocess
 import argparse
+from scripts.eval_task import tasks
 
 arg_desc = "AppAgent Evaluate"
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=arg_desc)
@@ -10,9 +11,6 @@ args = vars(parser.parse_args())
 model = args["model"]
 device = args["device"]
 
-tasks = [
-    "open gmail"
-]
 
 for i in range(len(tasks)):
     subprocess.run(f'python run.py -nd --model "{model}" --desc "{tasks[i]}" --device "{device}"', shell=True)

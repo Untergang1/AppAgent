@@ -3,8 +3,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 import sys
 
-from Trash.config import load_config
-from .utils import print_with_color
+from .utils import print_with_color, load_config
 
 
 configs = load_config()
@@ -50,6 +49,9 @@ def get_id_from_element(elem):
     if "content-desc" in elem.attrib and elem.attrib["content-desc"] and len(elem.attrib["content-desc"]) < 20:
         content_desc = elem.attrib['content-desc'].replace("/", "_").replace(" ", "").replace(":", "_")
         elem_id += f"_{content_desc}"
+    print(ET.tostring(elem, encoding='unicode'))
+    print(elem_id)
+    print()
     return elem_id
 
 

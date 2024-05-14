@@ -1,12 +1,12 @@
 import re
 from abc import abstractmethod
-from typing import List
+from typing import List, Optional
 from http import HTTPStatus
 
 import requests
 import dashscope
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, BitsAndBytesConfig
 from PIL import Image
 
 from .utils import print_with_color, encode_image
@@ -16,12 +16,26 @@ class BaseModel:
     def __init__(self):
         pass
 
+
+class BaseLanguageModel(BaseModel):
+    def __int__(self):
+        pass
+
+    @abstractmethod
+    def get_model_response(self, prompt: str) -> (bool, str):
+        pass
+
+
+class BaseMultiModalModel(BaseModel):
+    def __int__(self):
+        pass
+
     @abstractmethod
     def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
         pass
 
 
-class OpenAIModel(BaseModel):
+class OpenAIModel(BaseMultiModalModel):
     def __init__(self, base_url: str, api_key: str, model: str, temperature: float, max_tokens: int):
         super().__init__()
         self.base_url = base_url
@@ -73,10 +87,12 @@ class OpenAIModel(BaseModel):
         return True, response["choices"][0]["message"]["content"]
 
 
-class QwenModel(BaseModel):
-    def __init__(self, api_key: str, model: str):
+class QwenModel(BaseMultiModalModel):
+    def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
         super().__init__()
         self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
         dashscope.api_key = api_key
 
     def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
@@ -94,13 +110,52 @@ class QwenModel(BaseModel):
                 "content": content
             }
         ]
-        response = dashscope.MultiModalConversation.call(model=self.model, messages=messages)
+        call_args = {
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "top_k": 1
+        }
+        response = dashscope.MultiModalConversation.call(
+            model=self.model,
+            messages=messages,
+            **call_args
+        )
         if response.status_code == HTTPStatus.OK:
             return True, response.output.choices[0].message.content[0]["text"]
         else:
             return False, response.message
 
-class GeminiModel(BaseModel):
+class QwenTextModel(BaseLanguageModel):
+    def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
+        super().__init__()
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        dashscope.api_key = api_key
+
+    def get_model_response(self, prompt: str) -> (bool, str):
+        messages = [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        call_args = {
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "top_k": 1
+        }
+        response = dashscope.Generation.call(
+            model=self.model,
+            messages=messages,
+            **call_args
+        )
+        if response.status_code == HTTPStatus.OK:
+            return True, response.output.text
+        else:
+            return False, response.message
+
+class GeminiModel(BaseMultiModalModel):
     def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
         super().__init__()
         self.api_key = api_key
@@ -138,6 +193,84 @@ class GeminiModel(BaseModel):
         else:
             return False, response["error"]
 
+class GeminiTextModel(BaseLanguageModel):
+    def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
+        super().__init__()
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.base_url = f"https://generativelanguage.googleapis.com/v1/models/{self.model}:generateContent?key={self.api_key}"
+
+    def get_model_response(self, prompt: str) -> (bool, str):
+        parts=[
+            {"text": prompt}
+        ]
+        headers = {
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "contents": [{"parts":parts}],
+            "generationConfig": {
+                "temperature": self.temperature,
+                "maxOutputTokens": self.max_tokens
+            }
+        }
+
+        response = requests.post(self.base_url, headers=headers, json=payload).json()
+        if "error" not in response:
+            return True, response['candidates'][0]['content']['parts'][0]['text']
+        else:
+            return False, response["error"]
+
+class CogVLM(BaseModel):
+    def __init__(self, temperature: float = 0, max_tokens: int = 500):
+        super().__init__()
+        torch.set_default_device("cuda")
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16
+        )
+
+        model = AutoModelForCausalLM.from_pretrained(
+            "THUDM/cogagent-chat-hf",
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            quantization_config=bnb_config,
+            trust_remote_code=True
+        ).eval()
+        tokenizer = LlamaTokenizer.from_pretrained("lmsys/vicuna-7b-v1.5", trust_remote_code=True)
+        self.model = model
+        self.tokenizer = tokenizer
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.torch_type = torch.float16
+
+    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
+        prompt_template="A chat between a curious user and an artificial intelligence assistant.USER:{prompt} ASSISTANT:"
+        prompt = prompt_template.format(prompt=prompt)
+        # print(prompt)
+        images = [Image.open(image).convert('RGB') for image in images]
+        input_by_model = self.model.build_conversation_input_ids(self.tokenizer, query=prompt, images=images, template_version='base')
+
+        inputs = {
+            'input_ids': input_by_model['input_ids'].unsqueeze(0),
+            'token_type_ids': input_by_model['token_type_ids'].unsqueeze(0),
+            'attention_mask': input_by_model['attention_mask'].unsqueeze(0),
+            'images': [[input_by_model['images'][0].to(self.torch_type)]],
+            'cross_images': [[input_by_model['cross_images'][0].to(self.torch_type)]]
+        }
+        gen_kwargs = {"max_new_tokens": self.max_tokens,
+                      "do_sample": False}
+        outputs = self.model.generate(**inputs, **gen_kwargs)[0]
+        outputs = outputs[inputs['input_ids'].shape[1]:]
+        response = self.tokenizer.decode(outputs)
+        message = response.split("</s>")[0]
+        return True, message
+
+
 class IMPModel(BaseModel):
     def __init__(self, temperature: float = 0, max_tokens: int = 500):
         super().__init__()
@@ -155,11 +288,9 @@ class IMPModel(BaseModel):
         self.max_tokens = max_tokens
 
     def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
-        sys_prompt="""You are an agent that is trained to complete certain tasks on a smartphone. You will be
-given a screenshot of a smartphone app. The interactive UI elements on the screenshot are labeled with numeric tags 
-starting from 1. """
-        prompt = sys_prompt + len(images)*"\nimage:<image>" + prompt
-
+        prompt_template="A chat between a curious user and an artificial intelligence assistant.USER:{prompt} ASSISTANT:"
+        prompt = len(images)*"\nimage:<image>" + prompt
+        prompt = prompt_template.format(prompt=prompt)
         input_ids = self.tokenizer(prompt, return_tensors='pt').input_ids
         images=[Image.open(image) for image in images]
         image_tensors = [self.model.image_preprocess(image) for image in images]
@@ -182,7 +313,14 @@ def chose_model(model,configs):
                            max_tokens=configs["MAX_TOKENS"])
     elif model == "Qwen":
         mllm = QwenModel(api_key=configs["DASHSCOPE_API_KEY"],
-                         model=configs["QWEN_MODEL"])
+                         model=configs["QWEN_MODEL"],
+                         temperature=configs["TEMPERATURE"],
+                         max_tokens=configs["MAX_TOKENS"],)
+    elif model == "Qwen-text":
+        mllm = QwenTextModel(api_key=configs["DASHSCOPE_API_KEY"],
+                         model=configs["QWEN_TEXT_MODEL"],
+                         temperature=configs["TEMPERATURE"],
+                         max_tokens=configs["MAX_TOKENS"],)
     elif model == "IMP":
         mllm = IMPModel()
     elif model == "Gemini":
@@ -190,10 +328,17 @@ def chose_model(model,configs):
                            model=configs["GEMINI_MODEL"],
                            temperature=configs["TEMPERATURE"],
                            max_tokens=configs["MAX_TOKENS"])
+    elif model == "Gemini-text":
+        mllm = GeminiTextModel(api_key=configs["GEMINI_API_KEY"],
+                           model=configs["GEMINI_TEXT_MODEL"],
+                           temperature=configs["TEMPERATURE"],
+                           max_tokens=configs["MAX_TOKENS"])
+    elif model == "CogVLM":
+        mllm = CogVLM()
     return mllm
 
 
-def parse_explore_rsp(rsp, detail=False):
+def parse_explore_rsp(rsp, detail=True):
     try:
         observation = re.findall(r"Observation: (.*?)$", rsp, re.MULTILINE)[0]
         think = re.findall(r"Thought: (.*?)$", rsp, re.MULTILINE)[0]
@@ -237,6 +382,42 @@ def parse_explore_rsp(rsp, detail=False):
         print_with_color(rsp, "red")
         return ["ERROR"]
 
+def parse_explore_rsp_text(rsp, detail=False):
+    try:
+        observation = re.findall(r"Observation: (.*?)$", rsp, re.MULTILINE)[0]
+        think = re.findall(r"Thought: (.*?)$", rsp, re.MULTILINE)[0]
+        act = re.findall(r"Action: (.*?)$", rsp, re.MULTILINE)[0]
+        last_act = re.findall(r"Summary: (.*?)$", rsp, re.MULTILINE)[0]
+        if detail:
+            print_with_color("Observation:", "yellow")
+            print_with_color(observation, "magenta")
+            print_with_color("Thought:", "yellow")
+            print_with_color(think, "magenta")
+            print_with_color("Action:", "yellow")
+            print_with_color(act, "magenta")
+            print_with_color("Summary:", "yellow")
+            print_with_color(last_act, "magenta")
+        if "Stop" in act:
+            return ["Stop"]
+        act_name = act.split("(")[0]
+        if act_name == "Click":
+            bounds = re.findall(r"Click\((.*?)\)", act)[0]
+            matchs = re.match(r"\[(\w+), (\w+)]\[(\w+), (\w+)]", bounds)
+            x1, y1, x2, y2 = matchs.groups()
+            return [act_name, ((x1, y1), (x2, y2)), last_act]
+        elif act_name == "Type":
+            input_str = re.findall(r"text\((.*?)\)", act)[0][1:-1]
+            return [act_name, input_str, last_act]
+        elif act_name == "Swipe":
+            direction = re.findall(r"swipe\((.*?)\)", act)[0]
+            return [act_name, direction, last_act]
+        else:
+            print_with_color(f"ERROR: Undefined act {act_name}!", "red")
+            return ["ERROR"]
+    except Exception as e:
+        print_with_color(f"ERROR: an exception occurs while parsing the model response: {e}", "red")
+        print_with_color(rsp, "red")
+        return ["ERROR"]
 
 def parse_grid_rsp(rsp, detail=False):
     try:

@@ -3,13 +3,11 @@ import datetime
 import os
 import time
 
-from scripts.utils import print_with_color
+from scripts.utils import print_with_color, parse_args, load_config
+from scripts.self_explorer import self_explore
 
-arg_desc = "AppAgent - exploration phase"
-parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=arg_desc)
-parser.add_argument("--app")
-parser.add_argument("--root_dir", default="./")
-args = vars(parser.parse_args())
+configs = load_config()
+args = parse_args(configs)
 
 app = args["app"]
 root_dir = args["root_dir"]
@@ -36,7 +34,7 @@ if not app:
     app = app.replace(" ", "")
 
 if user_input == "1":
-    os.system(f"python scripts/self_explorer.py --app {app} --root_dir {root_dir}")
+    self_explore(args, configs)
 else:
     demo_timestamp = int(time.time())
     demo_name = datetime.datetime.fromtimestamp(demo_timestamp).strftime(f"demo_{app}_%Y-%m-%d_%H-%M-%S")
