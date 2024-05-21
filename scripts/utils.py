@@ -1,7 +1,6 @@
 import base64
 import cv2
 import pyshine as ps
-import argparse
 import os
 import yaml
 
@@ -13,19 +12,6 @@ def load_config(config_path="./config.yaml"):
         yaml_data = yaml.safe_load(file)
     configs.update(yaml_data)
     return configs
-
-def parse_args(configs):
-    arg_desc = "AppAgent Executor"
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=arg_desc)
-    parser.add_argument("--app", default="system")
-    parser.add_argument("--root_dir", default="./")
-    parser.add_argument("--model", default=configs["DEFAULT_MODEL"], help="inference model")
-    parser.add_argument("--nodoc", "-n", action="store_true", help="proceed without docs")
-    parser.add_argument("--detail", "-d", action="store_true", help="show detailed process")
-    parser.add_argument("--device")
-    parser.add_argument("--desc")
-    args = vars(parser.parse_args())
-    return args
 
 def print_with_color(text: str, color=""):
     if color == "red":

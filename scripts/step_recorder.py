@@ -8,8 +8,7 @@ import sys
 import time
 
 from and_controller import list_all_devices, AndroidController, traverse_tree
-from Trash.config import load_config
-from utils import print_with_color, draw_bbox_multi
+from .utils import print_with_color, draw_bbox_multi, load_config
 
 arg_desc = "AppAgent - Human Demonstration"
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=arg_desc)

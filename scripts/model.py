@@ -303,7 +303,8 @@ class IMPModel(BaseModel):
         message = self.tokenizer.decode(output_ids[input_ids.shape[1]:], skip_special_tokens=True).strip()
         return True, message
 
-def chose_model(model,configs):
+def chose_model(configs):
+    model = configs["model"]
     mllm=None
     if model == "OpenAI":
         mllm = OpenAIModel(base_url=configs["OPENAI_API_BASE"],

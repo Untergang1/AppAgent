@@ -7,9 +7,8 @@ import sys
 import time
 
 import prompts
-from Trash.config import load_config
-from model import OpenAIModel, QwenModel
-from utils import print_with_color
+from .model import OpenAIModel, QwenModel
+from .utils import print_with_color, load_config
 
 arg_desc = "AppAgent - Human Demonstration"
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=arg_desc)

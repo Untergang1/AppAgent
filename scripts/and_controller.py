@@ -49,9 +49,9 @@ def get_id_from_element(elem):
     if "content-desc" in elem.attrib and elem.attrib["content-desc"] and len(elem.attrib["content-desc"]) < 20:
         content_desc = elem.attrib['content-desc'].replace("/", "_").replace(" ", "").replace(":", "_")
         elem_id += f"_{content_desc}"
-    print(ET.tostring(elem, encoding='unicode'))
-    print(elem_id)
-    print()
+    # print(ET.tostring(elem, encoding='unicode'))
+    # print(elem_id)
+    # print()
     return elem_id
 
 
