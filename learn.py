@@ -3,8 +3,20 @@ import datetime
 import os
 import time
 
-from scripts.utils import print_with_color, parse_args, load_config
+from scripts.utils import print_with_color, load_config
 from scripts.self_explorer import self_explore
+
+def parse_args(configs):
+    arg_desc = " Run AppAgent"
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=arg_desc)
+    parser.add_argument("--app", default="system")
+    parser.add_argument("--root_dir", default="./")
+    parser.add_argument("--model", default=configs["DEFAULT_MODEL"], help="inference model")
+    parser.add_argument("--nodoc", "-n", action="store_true", help="proceed without docs")
+    parser.add_argument("--detail", "-d", action="store_true", help="show detailed process")
+    parser.add_argument("--desc")
+    args = vars(parser.parse_args())
+    return args
 
 configs = load_config()
 args = parse_args(configs)

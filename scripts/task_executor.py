@@ -11,15 +11,23 @@ from .and_controller import chose_device, AndroidController, traverse_tree
 from .model import parse_explore_rsp, parse_grid_rsp, chose_model
 from .utils import print_with_color, draw_bbox_multi, draw_grid
 
-def task_executor(args, configs):
-    mllm = chose_model(args["model"],configs)
+def task_executor():
+    configs = dict(os.environ)
+    mllm = chose_model()
     if mllm == None:
-        print_with_color(f"ERROR: Unsupported model type {args['model']}!", "red")
+        print_with_color(f"ERROR: Unsupported model type {configs['model']}!", "red")
         sys.exit()
 
-    app = args["app"]
-    root_dir = args["root_dir"]
-    detail = args["detail"]
+    app = configs["app"]
+    root_dir = configs["root_dir"]
+    detail = configs["detail"]
+    device = configs["DEVICE"]
+    task_desc = configs["desc"]
+    no_doc = configs["nodoc"]
+    max_rounds = configs["MAX_ROUNDS"]
+    min_dist = configs["MIN_DIST"]
+    request_interval = configs["REQUEST_INTERVAL"]
+    dark_mode = configs["DARK_MODE"]
 
     app_dir = os.path.join(os.path.join(root_dir, "apps"), app)
     work_dir = os.path.join(root_dir, "tasks")
@@ -33,7 +41,6 @@ def task_executor(args, configs):
     os.mkdir(task_dir)
     log_path = os.path.join(task_dir, f"log_{app}_{dir_name}.txt")
 
-    no_doc = args["nodoc"]
     if no_doc:
         print_with_color("proceed without docs.", "yellow")
     elif not os.path.exists(auto_docs_dir) and not os.path.exists(demo_docs_dir):
@@ -67,7 +74,6 @@ def task_executor(args, configs):
                          f"selected automatically.", "yellow")
         docs_dir = demo_docs_dir
 
-    device = args["device"]
     if not device:
         device = chose_device()
 
@@ -79,7 +85,6 @@ def task_executor(args, configs):
     if detail:
         print_with_color(f"Screen resolution of {device}: {width}x{height}", "yellow")
 
-    task_desc = args["desc"]
     if not task_desc:
         print_with_color("Please enter the description of the task you want me to complete in a few sentences:", "blue")
         task_desc = input()
@@ -116,7 +121,7 @@ def task_executor(args, configs):
         return x, y
 
 
-    while round_count < configs["MAX_ROUNDS"]:
+    while round_count < max_rounds:
         # grid_on=True
         round_count += 1
         print_with_color(f"Round {round_count}", "yellow")
@@ -142,13 +147,13 @@ def task_executor(args, configs):
                     bbox = e.bbox
                     center_ = (bbox[0][0] + bbox[1][0]) // 2, (bbox[0][1] + bbox[1][1]) // 2
                     dist = (abs(center[0] - center_[0]) ** 2 + abs(center[1] - center_[1]) ** 2) ** 0.5
-                    if dist <= configs["MIN_DIST"]:
+                    if dist <= min_dist:
                         close = True
                         break
                 if not close:
                     elem_list.append(elem)
             draw_bbox_multi(screenshot_path, os.path.join(task_dir, f"{dir_name}_{round_count}_labeled.png"), elem_list,
-                            dark_mode=configs["DARK_MODE"])
+                            dark_mode=dark_mode)
             image = os.path.join(task_dir, f"{dir_name}_{round_count}_labeled.png")
             if no_doc:
                 prompt = re.sub(r"<ui_document>", "", prompts.task_template)
@@ -183,7 +188,7 @@ def task_executor(args, configs):
         prompt = re.sub(r"<last_act>", last_act, prompt)
         if detail:
             print_with_color("Thinking about what to do in the next step...", "yellow")
-        status, rsp = mllm.get_model_response(prompt, [image])
+        status, rsp = mllm.invoke(prompt, [image])
         if status:
             with open(log_path, "a") as logfile:
                 log_item = {"step": round_count, "prompt": prompt, "image": f"{dir_name}_{round_count}_labeled.png",
@@ -256,29 +261,35 @@ def task_executor(args, configs):
                     break
             if act_name != "grid":
                 grid_on = False
-            time.sleep(configs["REQUEST_INTERVAL"])
+            time.sleep(request_interval)
         else:
-            print_with_color(rsp, "red")
+            print_with_color(str(rsp), "red")
             break
 
     if task_complete:
         return True, "success"
     else:
-        if round_count == configs["MAX_ROUNDS"]:
+        if round_count == max_rounds:
             msg = "max_rounds"
         else:
             msg = "error"
         return False, msg
 
-def task_executor_text_only(args, configs):
-    mllm = chose_model(args["model"],configs)
+def task_executor_text_only(configs):
+    mllm = chose_model(configs)
     if mllm == None:
-        print_with_color(f"ERROR: Unsupported model type {args['model']}!", "red")
+        print_with_color(f"ERROR: Unsupported model type {configs['model']}!", "red")
         sys.exit()
 
-    app = args["app"]
-    root_dir = args["root_dir"]
-    detail = args["detail"]
+    app = configs["app"]
+    root_dir = configs["root_dir"]
+    detail = configs["detail"]
+    device = configs["DEVICE"]
+    task_desc = configs["desc"]
+    no_doc = configs["nodoc"]
+    max_rounds = configs["MAX_ROUNDS"]
+    min_dist = configs["MIN_DIST"]
+    request_interval = configs["REQUEST_INTERVAL"]
 
     app_dir = os.path.join(os.path.join(root_dir, "apps"), app)
     work_dir = os.path.join(root_dir, "tasks")
@@ -292,7 +303,6 @@ def task_executor_text_only(args, configs):
     os.mkdir(task_dir)
     log_path = os.path.join(task_dir, f"log_{app}_{dir_name}.txt")
 
-    no_doc = args["nodoc"]
     if no_doc:
         print_with_color("proceed without docs.", "yellow")
     elif not os.path.exists(auto_docs_dir) and not os.path.exists(demo_docs_dir):
@@ -326,7 +336,7 @@ def task_executor_text_only(args, configs):
                          f"selected automatically.", "yellow")
         docs_dir = demo_docs_dir
 
-    device = args["device"]
+
     if not device:
         device = chose_device()
 
@@ -338,7 +348,6 @@ def task_executor_text_only(args, configs):
     if detail:
         print_with_color(f"Screen resolution of {device}: {width}x{height}", "yellow")
 
-    task_desc = args["desc"]
     if not task_desc:
         print_with_color("Please enter the description of the task you want me to complete in a few sentences:", "blue")
         task_desc = input()
@@ -349,95 +358,85 @@ def task_executor_text_only(args, configs):
     rows, cols = 0, 0
     template = prompts.self_explore_task_template_text
 
-    while round_count < configs["MAX_ROUNDS"]:
+    while round_count < max_rounds:
         # grid_on=True
         round_count += 1
         print_with_color(f"Round {round_count}", "yellow")
         xml_path = controller.get_xml(f"{dir_name}_{round_count}", task_dir)
         with open(xml_path, 'r') as file:
             xml = file.read()
-        prompt = query = template.format(xml=xml, task=task_desc, last_act=last_act)
+        clickable_list = []
+        focusable_list = []
+        traverse_tree(xml_path, clickable_list, "clickable", True)
+        traverse_tree(xml_path, focusable_list, "focusable", True)
+        elem_list = clickable_list.copy()
+        for elem in focusable_list:
+            bbox = elem.bbox
+            center = (bbox[0][0] + bbox[1][0]) // 2, (bbox[0][1] + bbox[1][1]) // 2
+            close = False
+            for e in clickable_list:
+                bbox = e.bbox
+                center_ = (bbox[0][0] + bbox[1][0]) // 2, (bbox[0][1] + bbox[1][1]) // 2
+                dist = (abs(center[0] - center_[0]) ** 2 + abs(center[1] - center_[1]) ** 2) ** 0.5
+                if dist <= min_dist:
+                    close = True
+                    break
+            if not close:
+                elem_list.append(elem)
+        prompt = template.format(xml=xml, task=task_desc, last_act=last_act)
         if detail:
             print_with_color("Thinking about what to do in the next step...", "yellow")
-        status, rsp = mllm.get_model_response(prompt)
-        if status:
-            with open(log_path, "a") as logfile:
-                log_item = {"step": round_count, "prompt": prompt, "image": f"{dir_name}_{round_count}_labeled.png",
-                            "response": rsp}
-                logfile.write(json.dumps(log_item) + "\n")
-            res = parse_explore_rsp(rsp, detail)
-            act_name = res[0]
-            if act_name == "Stop":
-                task_complete = True
-                break
-            if act_name == "ERROR":
-                break
-            last_act = res[-1]
-            res = res[:-1]
-            if act_name == "Click":
-                _, bounds = res
-                tl, br = elem_list[area - 1].bbox
-                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
-                ret = controller.tap(x, y)
-                if ret == "ERROR":
-                    print_with_color("ERROR: tap execution failed", "red")
-                    break
-            elif act_name == "text":
-                _, input_str = res
-                ret = controller.text(input_str)
-                if ret == "ERROR":
-                    print_with_color("ERROR: text execution failed", "red")
-                    break
-            elif act_name == "long_press":
-                _, area = res
-                tl, br = elem_list[area - 1].bbox
-                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
-                ret = controller.long_press(x, y)
-                if ret == "ERROR":
-                    print_with_color("ERROR: long press execution failed", "red")
-                    break
-            elif act_name == "swipe":
-                _, area, swipe_dir, dist = res
-                tl, br = elem_list[area - 1].bbox
-                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
-                ret = controller.swipe(x, y, swipe_dir, dist)
-                if ret == "ERROR":
-                    print_with_color("ERROR: swipe execution failed", "red")
-                    break
-            elif act_name == "grid":
-                grid_on = True
-            elif act_name == "tap_grid" or act_name == "long_press_grid":
-                _, area, subarea = res
-                x, y = area_to_xy(area, subarea)
-                if act_name == "tap_grid":
-                    ret = controller.tap(x, y)
-                    if ret == "ERROR":
-                        print_with_color("ERROR: tap execution failed", "red")
-                        break
-                else:
-                    ret = controller.long_press(x, y)
-                    if ret == "ERROR":
-                        print_with_color("ERROR: tap execution failed", "red")
-                        break
-            elif act_name == "swipe_grid":
-                _, start_area, start_subarea, end_area, end_subarea = res
-                start_x, start_y = area_to_xy(start_area, start_subarea)
-                end_x, end_y = area_to_xy(end_area, end_subarea)
-                ret = controller.swipe_precise((start_x, start_y), (end_x, end_y))
-                if ret == "ERROR":
-                    print_with_color("ERROR: tap execution failed", "red")
-                    break
-            if act_name != "grid":
-                grid_on = False
-            time.sleep(configs["REQUEST_INTERVAL"])
-        else:
-            print_with_color(rsp, "red")
+        rsp = mllm.invoke(prompt)
+        with open(log_path, "a") as logfile:
+            log_item = {"step": round_count, "prompt": prompt, "image": f"{dir_name}_{round_count}_labeled.png",
+                        "response": rsp}
+            logfile.write(json.dumps(log_item) + "\n")
+        res = parse_explore_rsp(rsp, detail)
+        act_name = res[0]
+        if act_name == "Stop":
+            task_complete = True
             break
+        if act_name == "ERROR":
+            break
+        last_act = res[-1]
+        res = res[:-1]
+        if act_name == "Click":
+            _, bounds = res
+            tl, br = elem_list[area - 1].bbox
+            x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+            ret = controller.tap(x, y)
+            if ret == "ERROR":
+                print_with_color("ERROR: tap execution failed", "red")
+                break
+        elif act_name == "text":
+            _, input_str = res
+            ret = controller.text(input_str)
+            if ret == "ERROR":
+                print_with_color("ERROR: text execution failed", "red")
+                break
+        elif act_name == "long_press":
+            _, area = res
+            tl, br = elem_list[area - 1].bbox
+            x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+            ret = controller.long_press(x, y)
+            if ret == "ERROR":
+                print_with_color("ERROR: long press execution failed", "red")
+                break
+        elif act_name == "swipe":
+            _, area, swipe_dir, dist = res
+            tl, br = elem_list[area - 1].bbox
+            x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+            ret = controller.swipe(x, y, swipe_dir, dist)
+            if ret == "ERROR":
+                print_with_color("ERROR: swipe execution failed", "red")
+                break
+        time.sleep(request_interval)
+
 
     if task_complete:
         return True, "success"
     else:
-        if round_count == configs["MAX_ROUNDS"]:
+        if round_count == max_rounds:
             msg = "max_rounds"
         else:
             msg = "error"

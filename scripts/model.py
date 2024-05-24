@@ -1,3 +1,4 @@
+import os
 import re
 from abc import abstractmethod
 from typing import List, Optional
@@ -6,36 +7,23 @@ from http import HTTPStatus
 import requests
 import dashscope
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, BitsAndBytesConfig, AutoConfig
 from PIL import Image
+from langchain_core.language_models.llms import LLM
 
 from .utils import print_with_color, encode_image
 
+class LLMAPIError(Exception):
+    def __init__(self, error_message):
+        self.error_message = error_message
+        super().__init__(f"ApiError {error_message}")
 
-class BaseModel:
-    def __init__(self):
-        pass
-
-
-class BaseLanguageModel(BaseModel):
-    def __int__(self):
-        pass
-
-    @abstractmethod
-    def get_model_response(self, prompt: str) -> (bool, str):
-        pass
-
-
-class BaseMultiModalModel(BaseModel):
-    def __int__(self):
-        pass
-
-    @abstractmethod
-    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
-        pass
-
-
-class OpenAIModel(BaseMultiModalModel):
+class OpenAIModel(LLM):
+    api_key: str = None
+    model: str = None
+    temperature: float = None
+    max_tokens: int = None
+    base_url: str = None
     def __init__(self, base_url: str, api_key: str, model: str, temperature: float, max_tokens: int):
         super().__init__()
         self.base_url = base_url
@@ -44,21 +32,23 @@ class OpenAIModel(BaseMultiModalModel):
         self.temperature = temperature
         self.max_tokens = max_tokens
 
-    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
+    def _call(self, prompt:str, **kwargs) -> str:
+        images = kwargs.get('images', None)
         content = [
             {
                 "type": "text",
                 "text": prompt
             }
         ]
-        for img in images:
-            base64_img = encode_image(img)
-            content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{base64_img}"
-                }
-            })
+        if images is not None:
+            for img in images:
+                base64_img = encode_image(img)
+                content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_img}"
+                    }
+                })
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
@@ -83,11 +73,18 @@ class OpenAIModel(BaseMultiModalModel):
                              f"${'{0:.2f}'.format(prompt_tokens / 1000 * 0.01 + completion_tokens / 1000 * 0.03)}",
                              "yellow")
         else:
-            return False, response["error"]["message"]
-        return True, response["choices"][0]["message"]["content"]
+            raise LLMAPIError(response["error"]["message"])
+        return response["choices"][0]["message"]["content"]
+
+    @property
+    def _llm_type(self) -> str:
+        return "openai"
 
 
-class QwenModel(BaseMultiModalModel):
+class QwenModel(LLM):
+    model: str = None
+    temperature: float = None
+    max_tokens: int = None
     def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
         super().__init__()
         self.model = model
@@ -95,15 +92,17 @@ class QwenModel(BaseMultiModalModel):
         self.max_tokens = max_tokens
         dashscope.api_key = api_key
 
-    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
+    def _call(self, prompt:str, **kwargs) -> str:
+        images = kwargs.get('images', None)
         content = [{
             "text": prompt
         }]
-        for img in images:
-            img_path = f"file://{img}"
-            content.append({
-                "image": img_path
-            })
+        if images is not None:
+            for img in images:
+                img_path = f"file://{img}"
+                content.append({
+                    "image": img_path
+                })
         messages = [
             {
                 "role": "user",
@@ -121,11 +120,18 @@ class QwenModel(BaseMultiModalModel):
             **call_args
         )
         if response.status_code == HTTPStatus.OK:
-            return True, response.output.choices[0].message.content[0]["text"]
+            return response.output.choices[0].message.content[0]["text"]
         else:
-            return False, response.message
+            raise LLMAPIError(response.message)
 
-class QwenTextModel(BaseLanguageModel):
+    @property
+    def _llm_type(self) -> str:
+        return "qwen"
+
+class QwenTextModel(LLM):
+    model: str = None
+    temperature: float = None
+    max_tokens: int = None
     def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
         super().__init__()
         self.model = model
@@ -133,7 +139,7 @@ class QwenTextModel(BaseLanguageModel):
         self.max_tokens = max_tokens
         dashscope.api_key = api_key
 
-    def get_model_response(self, prompt: str) -> (bool, str):
+    def _call(self, prompt:str, **kwargs) -> str:
         messages = [
             {
                 "role": "user",
@@ -151,11 +157,22 @@ class QwenTextModel(BaseLanguageModel):
             **call_args
         )
         if response.status_code == HTTPStatus.OK:
-            return True, response.output.text
+            return response.output.text
         else:
-            return False, response.message
+            raise LLMAPIError(response.message)
 
-class GeminiModel(BaseMultiModalModel):
+    @property
+    def _llm_type(self) -> str:
+        return "qwen-text"
+
+class GeminiModel(LLM):
+
+    api_key: str = None
+    model: str = None
+    temperature: float = None
+    max_tokens: int = None
+    base_url: str = None
+
     def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
         super().__init__()
         self.api_key = api_key
@@ -164,18 +181,20 @@ class GeminiModel(BaseMultiModalModel):
         self.max_tokens = max_tokens
         self.base_url = f"https://generativelanguage.googleapis.com/v1/models/{self.model}:generateContent?key={self.api_key}"
 
-    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
+    def _call(self, prompt:str, **kwargs) -> str:
+        images = kwargs.get('images', None)
         parts=[
             {"text": prompt}
         ]
-        for img in images:
-            base64_img = encode_image(img)
-            parts.append({
-                "inline_data": {
-                    "mime_type": "image/jpeg",
-                    "data": base64_img
-                    }
-            })
+        if images is not None:
+            for img in images:
+                base64_img = encode_image(img)
+                parts.append({
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64_img
+                        }
+                })
         headers = {
             "Content-Type": "application/json",
         }
@@ -189,11 +208,22 @@ class GeminiModel(BaseMultiModalModel):
 
         response = requests.post(self.base_url, headers=headers, json=payload).json()
         if "error" not in response:
-            return True, response['candidates'][0]['content']['parts'][0]['text']
+            return response['candidates'][0]['content']['parts'][0]['text']
         else:
-            return False, response["error"]
+            raise LLMAPIError(response['error'])
 
-class GeminiTextModel(BaseLanguageModel):
+    @property
+    def _llm_type(self) -> str:
+        return "Gemini"
+
+class GeminiTextModel(LLM):
+
+    api_key: str = None
+    model: str = None
+    temperature: float = None
+    max_tokens: int = None
+    base_url: str = None
+
     def __init__(self, api_key: str, model: str, temperature: float, max_tokens: int):
         super().__init__()
         self.api_key = api_key
@@ -202,7 +232,7 @@ class GeminiTextModel(BaseLanguageModel):
         self.max_tokens = max_tokens
         self.base_url = f"https://generativelanguage.googleapis.com/v1/models/{self.model}:generateContent?key={self.api_key}"
 
-    def get_model_response(self, prompt: str) -> (bool, str):
+    def _call(self, prompt: str, **kwargs) -> str:
         parts=[
             {"text": prompt}
         ]
@@ -219,11 +249,20 @@ class GeminiTextModel(BaseLanguageModel):
 
         response = requests.post(self.base_url, headers=headers, json=payload).json()
         if "error" not in response:
-            return True, response['candidates'][0]['content']['parts'][0]['text']
+            return response['candidates'][0]['content']['parts'][0]['text']
         else:
-            return False, response["error"]
+            raise LLMAPIError(response['error'])
 
-class CogVLM(BaseModel):
+    @property
+    def _llm_type(self) -> str:
+        return "Gemini-text"
+
+class CogVLM(LLM):
+    model: AutoModelForCausalLM = None
+    tokenizer: AutoTokenizer = None
+    temperature: float = None
+    max_tokens: int = None
+    torch_type: torch.dtype = torch.float16
     def __init__(self, temperature: float = 0, max_tokens: int = 500):
         super().__init__()
         torch.set_default_device("cuda")
@@ -248,11 +287,13 @@ class CogVLM(BaseModel):
         self.max_tokens = max_tokens
         self.torch_type = torch.float16
 
-    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
+    def _call(self, prompt:str, **kwargs) -> str:
+        images = kwargs.get('images', None)
+
         prompt_template="A chat between a curious user and an artificial intelligence assistant.USER:{prompt} ASSISTANT:"
         prompt = prompt_template.format(prompt=prompt)
-        # print(prompt)
-        images = [Image.open(image).convert('RGB') for image in images]
+        if images is not None:
+            images = [Image.open(image).convert('RGB') for image in images]
         input_by_model = self.model.build_conversation_input_ids(self.tokenizer, query=prompt, images=images, template_version='base')
 
         inputs = {
@@ -268,10 +309,18 @@ class CogVLM(BaseModel):
         outputs = outputs[inputs['input_ids'].shape[1]:]
         response = self.tokenizer.decode(outputs)
         message = response.split("</s>")[0]
-        return True, message
+        return message
+
+    @property
+    def _llm_type(self) -> str:
+        return "CogVLM"
 
 
-class IMPModel(BaseModel):
+class IMPModel(LLM):
+    model:  AutoModelForCausalLM = None
+    tokenizer: AutoTokenizer = None
+    temperature: float = None
+    max_tokens: int = None
     def __init__(self, temperature: float = 0, max_tokens: int = 500):
         super().__init__()
         torch.set_default_device("cuda")
@@ -287,7 +336,10 @@ class IMPModel(BaseModel):
         self.temperature = temperature
         self.max_tokens = max_tokens
 
-    def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
+    def _call(self, prompt:str, **kwargs) -> str:
+        images = kwargs.get('images', None)
+        if images is None:
+            images = []
         prompt_template="A chat between a curious user and an artificial intelligence assistant.USER:{prompt} ASSISTANT:"
         prompt = len(images)*"\nimage:<image>" + prompt
         prompt = prompt_template.format(prompt=prompt)
@@ -301,9 +353,14 @@ class IMPModel(BaseModel):
             images=image_tensors,
             use_cache=True)[0]
         message = self.tokenizer.decode(output_ids[input_ids.shape[1]:], skip_special_tokens=True).strip()
-        return True, message
+        return message
 
-def chose_model(model,configs):
+    @property
+    def _llm_type(self) -> str:
+        return "imp"
+
+def chose_model(configs):
+    model = configs["model"]
     mllm=None
     if model == "OpenAI":
         mllm = OpenAIModel(base_url=configs["OPENAI_API_BASE"],
