@@ -187,7 +187,7 @@ def task_executor(configs):
         prompt = re.sub(r"<last_act>", last_act, prompt)
         if detail:
             print_with_color("Thinking about what to do in the next step...", "yellow")
-        rsp = mllm.invoke(prompt, [image])
+        rsp = mllm.invoke(prompt, images=[image])
         with open(log_path, "a") as logfile:
             log_item = {"step": round_count, "prompt": prompt, "image": f"{dir_name}_{round_count}_labeled.png",
                         "response": rsp}

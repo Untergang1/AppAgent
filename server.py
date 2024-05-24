@@ -2,7 +2,7 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import subprocess
 
-from scripts.utils import print_with_color, load_config
+from scripts.utils import load_config
 from scripts.task_executor import task_executor
 import argparse
 
