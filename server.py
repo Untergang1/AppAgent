@@ -23,14 +23,11 @@ configs.update(args)
 
 device = configs["DEVICE"]
 
-<<<<<<< HEAD
-=======
 def get_ip_address(interface='en0'):
     result = subprocess.run(['ipconfig', 'getifaddr', interface], capture_output=True, text=True, check=True)
     ip_address = result.stdout.strip()
     return ip_address
 
->>>>>>> origin/LC
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers['Content-Length'])
@@ -42,10 +39,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         if received_data != "":
             configs.update({"desc": received_data})
             subprocess.run(f"adb -s {device} shell input keyevent KEYCODE_HOME", shell=True)
-<<<<<<< HEAD
-=======
             subprocess.run(f"adb -s {device} shell input keyevent KEYCODE_HOME", shell=True)
->>>>>>> origin/LC
             time.sleep(0.5)
             task_executor(configs)
 
@@ -56,22 +50,12 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 
 server_class=HTTPServer
 handler_class=SimpleHTTPRequestHandler
-
-<<<<<<< HEAD
-address, port = configs["SERVER_ADDRESS"].split(':')
-port = int(port)
-
-server_address = (address, port)
-httpd = server_class(server_address, handler_class)
-print(f"Server started on port {port}")
-=======
 address = get_ip_address()
 port = 8000
 
 server_address = (address, port)
 httpd = server_class(server_address, handler_class)
 print(f"Server started on {address}:{port}")
->>>>>>> origin/LC
 
 httpd.serve_forever()
 

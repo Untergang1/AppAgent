@@ -355,13 +355,11 @@ class IMPModel(LLM):
         message = self.tokenizer.decode(output_ids[input_ids.shape[1]:], skip_special_tokens=True).strip()
         return message
 
-<<<<<<< HEAD
     @property
     def _llm_type(self) -> str:
         return "imp"
 
-=======
->>>>>>> origin/LC
+
 def chose_model(configs):
     model = configs["model"]
     mllm=None
