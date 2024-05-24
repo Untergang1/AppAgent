@@ -11,9 +11,14 @@ from .and_controller import chose_device, AndroidController, traverse_tree
 from .model import parse_explore_rsp, parse_grid_rsp, chose_model
 from .utils import print_with_color, draw_bbox_multi, draw_grid
 
+<<<<<<< HEAD
 def task_executor():
     configs = dict(os.environ)
     mllm = chose_model()
+=======
+def task_executor(configs):
+    mllm = chose_model(configs)
+>>>>>>> origin/LC
     if mllm == None:
         print_with_color(f"ERROR: Unsupported model type {configs['model']}!", "red")
         sys.exit()
@@ -386,6 +391,7 @@ def task_executor_text_only(configs):
         prompt = template.format(xml=xml, task=task_desc, last_act=last_act)
         if detail:
             print_with_color("Thinking about what to do in the next step...", "yellow")
+<<<<<<< HEAD
         rsp = mllm.invoke(prompt)
         with open(log_path, "a") as logfile:
             log_item = {"step": round_count, "prompt": prompt, "image": f"{dir_name}_{round_count}_labeled.png",
@@ -395,6 +401,56 @@ def task_executor_text_only(configs):
         act_name = res[0]
         if act_name == "Stop":
             task_complete = True
+=======
+        status, rsp = mllm.get_model_response(prompt)
+        if status:
+            with open(log_path, "a") as logfile:
+                log_item = {"step": round_count, "prompt": prompt, "image": f"{dir_name}_{round_count}_labeled.png",
+                            "response": rsp}
+                logfile.write(json.dumps(log_item) + "\n")
+            res = parse_explore_rsp(rsp, detail)
+            act_name = res[0]
+            if act_name == "Stop":
+                task_complete = True
+                break
+            if act_name == "ERROR":
+                break
+            last_act = res[-1]
+            res = res[:-1]
+            if act_name == "Click":
+                _, bounds = res
+                tl, br = elem_list[area - 1].bbox
+                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+                ret = controller.tap(x, y)
+                if ret == "ERROR":
+                    print_with_color("ERROR: tap execution failed", "red")
+                    break
+            elif act_name == "text":
+                _, input_str = res
+                ret = controller.text(input_str)
+                if ret == "ERROR":
+                    print_with_color("ERROR: text execution failed", "red")
+                    break
+            elif act_name == "long_press":
+                _, area = res
+                tl, br = elem_list[area - 1].bbox
+                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+                ret = controller.long_press(x, y)
+                if ret == "ERROR":
+                    print_with_color("ERROR: long press execution failed", "red")
+                    break
+            elif act_name == "swipe":
+                _, area, swipe_dir, dist = res
+                tl, br = elem_list[area - 1].bbox
+                x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
+                ret = controller.swipe(x, y, swipe_dir, dist)
+                if ret == "ERROR":
+                    print_with_color("ERROR: swipe execution failed", "red")
+                    break
+            time.sleep(request_interval)
+        else:
+            print_with_color(rsp, "red")
+>>>>>>> origin/LC
             break
         if act_name == "ERROR":
             break
