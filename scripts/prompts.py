@@ -78,6 +78,10 @@ smartphone screen into small areas and this will give you more freedom to choose
 press, or swipe.
 
 <ui_document>
+
+The following is the xml description of the current screen:
+<xml>
+
 The task you need to complete is to <task_description>. Your past actions to proceed with this task are summarized as 
 follows: <last_act>
 Now, given the documentation and the following labeled screenshot, you need to think and call the function needed to 
@@ -182,6 +186,8 @@ Summary: <Summarize your past actions along with your latest action in one or tw
 tag in your summary>
 You can only take one action at a time, so please directly call the function."""
 
+
+
 self_explore_task_template_text = """You are an agent that is trained to perform some basic tasks on a smartphone. You will be given an xml describing the smartphone screen.
 
 First, you need to generate the Observation and Thought.
@@ -252,7 +258,4 @@ can use pronouns such as "the UI element" to refer to the element. Your output s
 Decision: SUCCESS
 Thought: <explain why you think the action successfully moved the task forward>
 Documentation: <describe the function of the UI element>
-"""
-
-supervisor_template = """you are a supervisor 
 """

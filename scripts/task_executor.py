@@ -7,7 +7,7 @@ import sys
 import time
 
 from . import prompts
-from .and_controller import chose_device, AndroidController, traverse_tree
+from .and_controller import chose_device, AndroidController, traverse_tree_all, strip_xml
 from .model import parse_explore_rsp, parse_grid_rsp, chose_model
 from .utils import print_with_color, draw_bbox_multi, draw_grid
 
@@ -133,24 +133,27 @@ def task_executor(configs):
             image = os.path.join(task_dir, f"{dir_name}_{round_count}_grid.png")
             prompt = prompts.task_template_grid
         else:
-            clickable_list = []
-            focusable_list = []
-            traverse_tree(xml_path, clickable_list, "clickable", True)
-            traverse_tree(xml_path, focusable_list, "focusable", True)
-            elem_list = clickable_list.copy()
-            for elem in focusable_list:
-                bbox = elem.bbox
-                center = (bbox[0][0] + bbox[1][0]) // 2, (bbox[0][1] + bbox[1][1]) // 2
-                close = False
-                for e in clickable_list:
-                    bbox = e.bbox
-                    center_ = (bbox[0][0] + bbox[1][0]) // 2, (bbox[0][1] + bbox[1][1]) // 2
-                    dist = (abs(center[0] - center_[0]) ** 2 + abs(center[1] - center_[1]) ** 2) ** 0.5
-                    if dist <= min_dist:
-                        close = True
-                        break
-                if not close:
-                    elem_list.append(elem)
+            # clickable_list = []
+            # focusable_list = []
+            # traverse_tree(xml_path, clickable_list, "clickable", True)
+            # traverse_tree(xml_path, focusable_list, "focusable", True)
+            # elem_list = clickable_list.copy()
+            # for elem in focusable_list:
+            #     bbox = elem.bbox
+            #     center = (bbox[0][0] + bbox[1][0]) // 2, (bbox[0][1] + bbox[1][1]) // 2
+            #     close = False
+            #     for e in clickable_list:
+            #         bbox = e.bbox
+            #         center_ = (bbox[0][0] + bbox[1][0]) // 2, (bbox[0][1] + bbox[1][1]) // 2
+            #         dist = (abs(center[0] - center_[0]) ** 2 + abs(center[1] - center_[1]) ** 2) ** 0.5
+            #         if dist <= min_dist:
+            #             close = True
+            #             break
+            #     if not close:
+            #         elem_list.append(elem)
+            elem_list = []
+            traverse_tree_all(xml_path, elem_list, True)
+            print(elem_list)
             draw_bbox_multi(screenshot_path, os.path.join(task_dir, f"{dir_name}_{round_count}_labeled.png"), elem_list,
                             dark_mode=dark_mode)
             image = os.path.join(task_dir, f"{dir_name}_{round_count}_labeled.png")
@@ -183,6 +186,9 @@ def task_executor(configs):
                 elements you can interact on the screen. These docs are crucial for you to determine the target of your 
                 next action. You should always prioritize these documented elements for interaction:""" + ui_doc
                 prompt = re.sub(r"<ui_document>", ui_doc, prompts.task_template)
+        xml_string = strip_xml(xml_path)
+        # print(xml_string)
+        prompt = re.sub(r"<task_description>", xml_string, prompt)
         prompt = re.sub(r"<task_description>", task_desc, prompt)
         prompt = re.sub(r"<last_act>", last_act, prompt)
         if detail:
@@ -206,6 +212,7 @@ def task_executor(configs):
         res = res[:-1]
         if act_name == "tap":
             _, area = res
+            # print(area)
             tl, br = elem_list[area - 1].bbox
             x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
             ret = controller.tap(x, y)

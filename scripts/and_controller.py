@@ -38,6 +38,7 @@ def list_all_devices():
 
 
 def get_id_from_element(elem):
+    print(elem)
     bounds = elem.attrib["bounds"][1:-1].split("][")
     x1, y1 = map(int, bounds[0].split(","))
     x2, y2 = map(int, bounds[1].split(","))
@@ -49,10 +50,27 @@ def get_id_from_element(elem):
     if "content-desc" in elem.attrib and elem.attrib["content-desc"] and len(elem.attrib["content-desc"]) < 20:
         content_desc = elem.attrib['content-desc'].replace("/", "_").replace(" ", "").replace(":", "_")
         elem_id += f"_{content_desc}"
-    # print(ET.tostring(elem, encoding='unicode'))
-    # print(elem_id)
-    # print()
     return elem_id
+
+def strip_xml(xml_path):
+    attributes_to_remove = [
+        "checkable", "checked", "clickable", "enabled",
+        "focusable", "focused", "scrollable",
+        "long-clickable", "password"
+    ]
+    def remove_attributes(element):
+        for attr in attributes_to_remove:
+            if attr in element.attrib:
+                del element.attrib[attr]
+        for child in element:
+            remove_attributes(child)
+
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    remove_attributes(root)
+
+    return ET.tostring(root, encoding='utf-8').decode('utf-8')
 
 
 def traverse_tree(xml_path, elem_list, attrib, add_index=False):
@@ -61,6 +79,39 @@ def traverse_tree(xml_path, elem_list, attrib, add_index=False):
         if event == 'start':
             path.append(elem)
             if attrib in elem.attrib and elem.attrib[attrib] == "true":
+                parent_prefix = ""
+                if len(path) > 1:
+                    parent_prefix = get_id_from_element(path[-2])
+                bounds = elem.attrib["bounds"][1:-1].split("][")
+                x1, y1 = map(int, bounds[0].split(","))
+                x2, y2 = map(int, bounds[1].split(","))
+                center = (x1 + x2) // 2, (y1 + y2) // 2
+                elem_id = get_id_from_element(elem)
+                if parent_prefix:
+                    elem_id = parent_prefix + "_" + elem_id
+                if add_index:
+                    elem_id += f"_{elem.attrib['index']}"
+                close = False
+                for e in elem_list:
+                    bbox = e.bbox
+                    center_ = (bbox[0][0] + bbox[1][0]) // 2, (bbox[0][1] + bbox[1][1]) // 2
+                    dist = (abs(center[0] - center_[0]) ** 2 + abs(center[1] - center_[1]) ** 2) ** 0.5
+                    if dist <= configs["MIN_DIST"]:
+                        close = True
+                        break
+                if not close:
+                    elem_list.append(AndroidElement(elem_id, ((x1, y1), (x2, y2)), attrib))
+
+        if event == 'end':
+            path.pop()
+
+def traverse_tree_all(xml_path, elem_list, add_index=False):
+    path = []
+    attrib = "bounds"
+    for event, elem in ET.iterparse(xml_path, ['start', 'end']):
+        if event == 'start':
+            path.append(elem)
+            if attrib in elem.attrib and elem.attrib[attrib] != "[0,0][0,0]":
                 parent_prefix = ""
                 if len(path) > 1:
                     parent_prefix = get_id_from_element(path[-2])
