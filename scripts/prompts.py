@@ -77,19 +77,17 @@ other elements with numeric tags cannot help with the task. The function will br
 smartphone screen into small areas and this will give you more freedom to choose any part of the screen to tap, long 
 press, or swipe.
 
-<ui_document>
-The task you need to complete is to <task_description>. Your past actions to proceed with this task are summarized as 
-follows: <last_act>
+<related_paths>
+The task you need to complete is to <task_description>
 Now, given the documentation and the following labeled screenshot, you need to think and call the function needed to 
 proceed with the task. Your output should include four parts in the given format:
 
-Observation: <Describe what you observe in the image>
-Thought: <To complete the given task, what is the next step I should do>
-Action: <The function call with the correct parameters to proceed with the task. If you believe the task is completed or 
+Observation: <Describe what elements are in this interface and summarize what is the main function of this interface >
+Intermediate Goal: <Describe the desired functionality of the page you aim to reach within the next 3 to 5 steps.>
+Action: <Describe your the next action you should do in a concise phrase.>
+Function: <The function call with the correct parameters to proceed with the task. If you believe the task is completed or 
 there is nothing to be done, you should output FINISH. You cannot output anything else except a function call or FINISH 
 in this field.>
-Summary: <Summarize your past actions along with your current action in one or two sentences. Do not include the numeric 
-tag in your summary.>
 
 You can only take one action at a time, so please directly call the function."""
 
@@ -252,7 +250,4 @@ can use pronouns such as "the UI element" to refer to the element. Your output s
 Decision: SUCCESS
 Thought: <explain why you think the action successfully moved the task forward>
 Documentation: <describe the function of the UI element>
-"""
-
-supervisor_template = """you are a supervisor 
 """

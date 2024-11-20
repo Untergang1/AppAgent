@@ -7,11 +7,11 @@ MAX_TOKENS: 300  # The max token limit for the response completion
 TEMPERATURE: 0.0  # The temperature of the model: the lower the value, the more consistent the output of the model
 REQUEST_INTERVAL: 5  # Time in seconds between consecutive GPT-4V requests
 
-DASHSCOPE_API_KEY: ""  # The dashscope API key that gives you access to Qwen-VL model
+DASHSCOPE_API_KEY: "sk-fd61b9bff9534ad09499dcbdceeecc6f"  # The dashscope API key that gives you access to Qwen-VL model
 QWEN_MODEL: "qwen-vl-max"
 
-GEMINI_API_KEY: ""
-GEMINI_MODEL: "gemini-pro-vision"
+GEMINI_API_KEY: "AIzaSyA7RrLxCwmAPcU0WHLFRWiMOOXpbaaOSgU"
+GEMINI_MODEL: "gemini-1.5-flash"
 
 ANDROID_SCREENSHOT_DIR: "/sdcard"  # Set the directory on your Android device to store the intermediate screenshots. Make sure the directory EXISTS on your phone!
 ANDROID_XML_DIR: "/sdcard"  # Set the directory on your Android device to store the intermediate XML files used for determining locations of UI elements on your screen. Make sure the directory EXISTS on your phone!
@@ -21,4 +21,4 @@ MAX_ROUNDS: 20  # Set the round limit for the agent to complete the task
 DARK_MODE: false  # Set this to true if your app is in dark mode to enhance the element labeling
 MIN_DIST: 30  # The minimum distance between elements to prevent overlapping during the labeling process
 
-DEVICE: "adb-8171757-piOGYf._adb-tls-connect._tcp."
+DEVICE: "emulator-5554"

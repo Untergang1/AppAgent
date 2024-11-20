@@ -16,7 +16,6 @@ class BaseModel:
     def __init__(self):
         pass
 
-
 class BaseLanguageModel(BaseModel):
     def __int__(self):
         pass
@@ -162,7 +161,7 @@ class GeminiModel(BaseMultiModalModel):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.base_url = f"https://generativelanguage.googleapis.com/v1/models/{self.model}:generateContent?key={self.api_key}"
+        self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
 
     def get_model_response(self, prompt: str, images: List[str]) -> (bool, str):
         parts=[
@@ -342,42 +341,46 @@ def chose_model(configs):
 def parse_explore_rsp(rsp, detail=True):
     try:
         observation = re.findall(r"Observation: (.*?)$", rsp, re.MULTILINE)[0]
-        think = re.findall(r"Thought: (.*?)$", rsp, re.MULTILINE)[0]
-        act = re.findall(r"Action: (.*?)$", rsp, re.MULTILINE)[0]
-        last_act = re.findall(r"Summary: (.*?)$", rsp, re.MULTILINE)[0]
+        intermediate_goal = re.findall(r"Intermediate Goal: (.*?)$", rsp, re.MULTILINE)[0]
+        action = re.findall(r"Action: (.*?)$", rsp, re.MULTILINE)[0]
+        function = re.findall(r"Function: (.*?)$", rsp, re.MULTILINE)[0]
         if detail:
             print_with_color("Observation:", "yellow")
             print_with_color(observation, "magenta")
-            print_with_color("Thought:", "yellow")
-            print_with_color(think, "magenta")
+            print_with_color("Intermediate Goal:", "yellow")
+            print_with_color(intermediate_goal, "magenta")
             print_with_color("Action:", "yellow")
-            print_with_color(act, "magenta")
-            print_with_color("Summary:", "yellow")
-            print_with_color(last_act, "magenta")
-        if "FINISH" in act:
+            print_with_color(action, "magenta")
+            print_with_color("Function:", "yellow")
+            print_with_color(function, "magenta")
+        if "FINISH" in function:
             return ["FINISH"]
-        act_name = act.split("(")[0]
-        if act_name == "tap":
-            area = int(re.findall(r"tap\((.*?)\)", act)[0])
-            return [act_name, area, last_act]
-        elif act_name == "text":
-            input_str = re.findall(r"text\((.*?)\)", act)[0][1:-1]
-            return [act_name, input_str, last_act]
-        elif act_name == "long_press":
-            area = int(re.findall(r"long_press\((.*?)\)", act)[0])
-            return [act_name, area, last_act]
-        elif act_name == "swipe":
-            params = re.findall(r"swipe\((.*?)\)", act)[0]
+        func_name = function.split("(")[0]
+        parsed_func = []
+        
+        if func_name == "tap":
+            area = int(re.findall(r"tap\((.*?)\)", function)[0])
+            parsed_func = [func_name, area]
+        elif func_name == "text":
+            input_str = re.findall(r"text\((.*?)\)", function)[0][1:-1]
+            parsed_func = [func_name, input_str]
+        elif func_name == "long_press":
+            area = int(re.findall(r"long_press\((.*?)\)", function)[0])
+            parsed_func = [func_name, area]
+        elif func_name == "swipe":
+            params = re.findall(r"swipe\((.*?)\)", function)[0]
             area, swipe_dir, dist = params.split(",")
             area = int(area)
             swipe_dir = swipe_dir.strip()[1:-1]
             dist = dist.strip()[1:-1]
-            return [act_name, area, swipe_dir, dist, last_act]
-        elif act_name == "grid":
-            return [act_name]
+            parsed_func = [func_name, area, swipe_dir, dist]
+        elif func_name == "grid":
+            parsed_func = [func_name]
         else:
-            print_with_color(f"ERROR: Undefined act {act_name}!", "red")
+            print_with_color(f"ERROR: Undefined act {func_name}!", "red")
             return ["ERROR"]
+
+        return observation, intermediate_goal, action, parsed_func
     except Exception as e:
         print_with_color(f"ERROR: an exception occurs while parsing the model response: {e}", "red")
         print_with_color(rsp, "red")
@@ -400,20 +403,20 @@ def parse_explore_rsp_text(rsp, detail=False):
             print_with_color(last_act, "magenta")
         if "Stop" in act:
             return ["Stop"]
-        act_name = act.split("(")[0]
-        if act_name == "Click":
+        func_name = act.split("(")[0]
+        if func_name == "Click":
             bounds = re.findall(r"Click\((.*?)\)", act)[0]
             matchs = re.match(r"\[(\w+), (\w+)]\[(\w+), (\w+)]", bounds)
             x1, y1, x2, y2 = matchs.groups()
-            return [act_name, ((x1, y1), (x2, y2)), last_act]
-        elif act_name == "Type":
+            return [func_name, ((x1, y1), (x2, y2)), last_act]
+        elif func_name == "Type":
             input_str = re.findall(r"text\((.*?)\)", act)[0][1:-1]
-            return [act_name, input_str, last_act]
-        elif act_name == "Swipe":
+            return [func_name, input_str, last_act]
+        elif func_name == "Swipe":
             direction = re.findall(r"swipe\((.*?)\)", act)[0]
-            return [act_name, direction, last_act]
+            return [func_name, direction, last_act]
         else:
-            print_with_color(f"ERROR: Undefined act {act_name}!", "red")
+            print_with_color(f"ERROR: Undefined act {func_name}!", "red")
             return ["ERROR"]
     except Exception as e:
         print_with_color(f"ERROR: an exception occurs while parsing the model response: {e}", "red")
@@ -437,28 +440,28 @@ def parse_grid_rsp(rsp, detail=False):
             print_with_color(last_act, "magenta")
         if "FINISH" in act:
             return ["FINISH"]
-        act_name = act.split("(")[0]
-        if act_name == "tap":
+        func_name = act.split("(")[0]
+        if func_name == "tap":
             params = re.findall(r"tap\((.*?)\)", act)[0].split(",")
             area = int(params[0].strip())
             subarea = params[1].strip()[1:-1]
-            return [act_name + "_grid", area, subarea, last_act]
-        elif act_name == "long_press":
+            return [func_name + "_grid", area, subarea, last_act]
+        elif func_name == "long_press":
             params = re.findall(r"long_press\((.*?)\)", act)[0].split(",")
             area = int(params[0].strip())
             subarea = params[1].strip()[1:-1]
-            return [act_name + "_grid", area, subarea, last_act]
-        elif act_name == "swipe":
+            return [func_name + "_grid", area, subarea, last_act]
+        elif func_name == "swipe":
             params = re.findall(r"swipe\((.*?)\)", act)[0].split(",")
             start_area = int(params[0].strip())
             start_subarea = params[1].strip()[1:-1]
             end_area = int(params[2].strip())
             end_subarea = params[3].strip()[1:-1]
-            return [act_name + "_grid", start_area, start_subarea, end_area, end_subarea, last_act]
-        elif act_name == "grid":
-            return [act_name]
+            return [func_name + "_grid", start_area, start_subarea, end_area, end_subarea, last_act]
+        elif func_name == "grid":
+            return [func_name]
         else:
-            print_with_color(f"ERROR: Undefined act {act_name}!", "red")
+            print_with_color(f"ERROR: Undefined act {func_name}!", "red")
             return ["ERROR"]
     except Exception as e:
         print_with_color(f"ERROR: an exception occurs while parsing the model response: {e}", "red")

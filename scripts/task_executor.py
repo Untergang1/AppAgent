@@ -10,6 +10,7 @@ from . import prompts
 from .and_controller import chose_device, AndroidController, traverse_tree
 from .model import parse_explore_rsp, parse_grid_rsp, chose_model
 from .utils import print_with_color, draw_bbox_multi, draw_grid
+from .graph_database import GraphDatabase, calculate_hash
 
 def task_executor(configs):
     mllm = chose_model(configs)
@@ -22,7 +23,6 @@ def task_executor(configs):
     detail = configs["detail"]
     device = configs["DEVICE"]
     task_desc = configs["desc"]
-    no_doc = configs["nodoc"]
     max_rounds = configs["MAX_ROUNDS"]
     min_dist = configs["MIN_DIST"]
     request_interval = configs["REQUEST_INTERVAL"]
@@ -40,38 +40,8 @@ def task_executor(configs):
     os.mkdir(task_dir)
     log_path = os.path.join(task_dir, f"log_{app}_{dir_name}.txt")
 
-    if no_doc:
-        print_with_color("proceed without docs.", "yellow")
-    elif not os.path.exists(auto_docs_dir) and not os.path.exists(demo_docs_dir):
-        print_with_color(f"No documentations found for the app {app}. Do you want to proceed with no docs? Enter y or n",
-                         "red")
-        user_input = ""
-        while user_input != "y" and user_input != "n":
-            user_input = input().lower()
-        if user_input == "y":
-            no_doc = True
-        else:
-            sys.exit()
-    elif os.path.exists(auto_docs_dir) and os.path.exists(demo_docs_dir):
-        print_with_color(f"The app {app} has documentations generated from both autonomous exploration and human "
-                         f"demonstration. Which one do you want to use? Type 1 or 2.\n1. Autonomous exploration\n2. Human "
-                         f"Demonstration",
-                         "blue")
-        user_input = ""
-        while user_input != "1" and user_input != "2":
-            user_input = input()
-        if user_input == "1":
-            docs_dir = auto_docs_dir
-        else:
-            docs_dir = demo_docs_dir
-    elif os.path.exists(auto_docs_dir):
-        print_with_color(f"Documentations generated from autonomous exploration were found for the app {app}. The doc base "
-                         f"is selected automatically.", "yellow")
-        docs_dir = auto_docs_dir
-    else:
-        print_with_color(f"Documentations generated from human demonstration were found for the app {app}. The doc base is "
-                         f"selected automatically.", "yellow")
-        docs_dir = demo_docs_dir
+    print_with_color("proceed with graph database.", "yellow")
+    db = GraphDatabase()
 
     if not device:
         device = chose_device()
@@ -89,7 +59,7 @@ def task_executor(configs):
         task_desc = input()
 
     round_count = 0
-    last_act = "None"
+    # last_act = "None"
     task_complete = False
     grid_on = False
     rows, cols = 0, 0
@@ -119,9 +89,12 @@ def task_executor(configs):
             x, y = x_0 + (width // cols) // 2, y_0 + (height // rows) // 2
         return x, y
 
+    pre_node_id = None
+    cur_node_id = None
+    act_desc = None
+    intermediate_goal = None
 
     while round_count < max_rounds:
-        # grid_on=True
         round_count += 1
         print_with_color(f"Round {round_count}", "yellow")
         screenshot_path = controller.get_screenshot(f"{dir_name}_{round_count}", task_dir)
@@ -154,37 +127,19 @@ def task_executor(configs):
             draw_bbox_multi(screenshot_path, os.path.join(task_dir, f"{dir_name}_{round_count}_labeled.png"), elem_list,
                             dark_mode=dark_mode)
             image = os.path.join(task_dir, f"{dir_name}_{round_count}_labeled.png")
-            if no_doc:
-                prompt = re.sub(r"<ui_document>", "", prompts.task_template)
+
+            tar = task_desc if intermediate_goal is None else intermediate_goal
+            related_paths = db.query(cur_node_id, tar)
+            if len(related_paths) == 0:
+                paths_doc = ""
             else:
-                ui_doc = ""
-                for i, elem in enumerate(elem_list):
-                    doc_path = os.path.join(docs_dir, f"{elem.uid}.txt")
-                    if not os.path.exists(doc_path):
-                        continue
-                    ui_doc += f"Documentation of UI element labeled with the numeric tag '{i + 1}':\n"
-                    doc_content = ast.literal_eval(open(doc_path, "r").read())
-                    if doc_content["tap"]:
-                        ui_doc += f"This UI element is clickable. {doc_content['tap']}\n\n"
-                    if doc_content["text"]:
-                        ui_doc += f"This UI element can receive text input. The text input is used for the following " \
-                                  f"purposes: {doc_content['text']}\n\n"
-                    if doc_content["long_press"]:
-                        ui_doc += f"This UI element is long clickable. {doc_content['long_press']}\n\n"
-                    if doc_content["v_swipe"]:
-                        ui_doc += f"This element can be swiped directly without tapping. You can swipe vertically on " \
-                                  f"this UI element. {doc_content['v_swipe']}\n\n"
-                    if doc_content["h_swipe"]:
-                        ui_doc += f"This element can be swiped directly without tapping. You can swipe horizontally on " \
-                                  f"this UI element. {doc_content['h_swipe']}\n\n"
-                print_with_color(f"Documentations retrieved for the current interface:\n{ui_doc}", "magenta")
-                ui_doc = """
-                You also have access to the following documentations that describes the functionalities of UI 
-                elements you can interact on the screen. These docs are crucial for you to determine the target of your 
-                next action. You should always prioritize these documented elements for interaction:""" + ui_doc
-                prompt = re.sub(r"<ui_document>", ui_doc, prompts.task_template)
+                paths_doc = "Here are some possible action paths:\n"
+                for i, path in enumerate(related_paths, start=1):
+                    paths_doc += f"{i}: {path}\n"
+            prompt = re.sub(r"<related_paths>", paths_doc, prompts.task_template)
+
         prompt = re.sub(r"<task_description>", task_desc, prompt)
-        prompt = re.sub(r"<last_act>", last_act, prompt)
+        # prompt = re.sub(r"<last_act>", last_act, prompt)
         if detail:
             print_with_color("Thinking about what to do in the next step...", "yellow")
         status, rsp = mllm.get_model_response(prompt, [image])
@@ -196,17 +151,26 @@ def task_executor(configs):
             if grid_on:
                 res = parse_grid_rsp(rsp, detail)
             else:
-                res = parse_explore_rsp(rsp, detail)
-            act_name = res[0]
+                observation, intermediate_goal, action, parsed_function = parse_explore_rsp(rsp, detail)
+            act_name = parsed_function[0]
             if act_name == "FINISH":
                 task_complete = True
                 break
             if act_name == "ERROR":
                 break
-            last_act = res[-1]
-            res = res[:-1]
+
+            fun_desc = observation
+            pre_node_id = cur_node_id
+            cur_node_id = calculate_hash(xml_path)
+            db.creat_node(cur_node_id, fun_desc, xml_path)
+
+            if pre_node_id is not None and act_desc is not None:
+                db.create_relationship(pre_node_id, cur_node_id, act_desc)
+
+            act_desc = action
+
             if act_name == "tap":
-                _, area = res
+                _, area = parsed_function
                 tl, br = elem_list[area - 1].bbox
                 x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
                 ret = controller.tap(x, y)
@@ -214,13 +178,13 @@ def task_executor(configs):
                     print_with_color("ERROR: tap execution failed", "red")
                     break
             elif act_name == "text":
-                _, input_str = res
+                _, input_str = parsed_function
                 ret = controller.text(input_str)
                 if ret == "ERROR":
                     print_with_color("ERROR: text execution failed", "red")
                     break
             elif act_name == "long_press":
-                _, area = res
+                _, area = parsed_function
                 tl, br = elem_list[area - 1].bbox
                 x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
                 ret = controller.long_press(x, y)
@@ -228,7 +192,7 @@ def task_executor(configs):
                     print_with_color("ERROR: long press execution failed", "red")
                     break
             elif act_name == "swipe":
-                _, area, swipe_dir, dist = res
+                _, area, swipe_dir, dist = parsed_function
                 tl, br = elem_list[area - 1].bbox
                 x, y = (tl[0] + br[0]) // 2, (tl[1] + br[1]) // 2
                 ret = controller.swipe(x, y, swipe_dir, dist)
@@ -258,8 +222,9 @@ def task_executor(configs):
                 if ret == "ERROR":
                     print_with_color("ERROR: tap execution failed", "red")
                     break
-            if act_name != "grid":
-                grid_on = False
+            elif act_name == "grid":
+                grid_on = True
+
             time.sleep(request_interval)
         else:
             print_with_color(str(rsp), "red")
