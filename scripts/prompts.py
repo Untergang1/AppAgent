@@ -77,12 +77,17 @@ other elements with numeric tags cannot help with the task. The function will br
 smartphone screen into small areas and this will give you more freedom to choose any part of the screen to tap, long 
 press, or swipe.
 
-<related_paths>
 The task you need to complete is to <task_description>
-Now, given the documentation and the following labeled screenshot, you need to think and call the function needed to 
-proceed with the task. Your output should include four parts in the given format:
 
-Observation: <Describe what elements are in this interface and summarize what is the main function of this interface >
+Here are some possible action paths to consider：
+<related_paths>
+
+Now, given the documentation and the following labeled screenshot, you need to think and call the function needed to 
+proceed with the task(<task_description>). Your output should include four parts in the given format:
+
+Observation: <Describe what elements are in this interface and summarize what is the main function of this interface.
+Describe the page simply and comprehensively, without considering the task objectives.
+Focus on the structure and functionality of the page, and ignore volatile content such as ads and media.>
 Intermediate Goal: <Describe the desired functionality of the page you aim to reach within the next 3 to 5 steps.>
 Action: <Describe your the next action you should do in a concise phrase.>
 Function: <The function call with the correct parameters to proceed with the task. If you believe the task is completed or 

@@ -1,3 +1,4 @@
+import os
 import re
 from abc import abstractmethod
 from typing import List, Optional
@@ -312,24 +313,24 @@ def chose_model(configs):
                            temperature=configs["TEMPERATURE"],
                            max_tokens=configs["MAX_TOKENS"])
     elif model == "Qwen":
-        mllm = QwenModel(api_key=configs["DASHSCOPE_API_KEY"],
+        mllm = QwenModel(api_key=os.getenv("DASHSCOPE_API_KEY"),
                          model=configs["QWEN_MODEL"],
                          temperature=configs["TEMPERATURE"],
                          max_tokens=configs["MAX_TOKENS"],)
     elif model == "Qwen-text":
-        mllm = QwenTextModel(api_key=configs["DASHSCOPE_API_KEY"],
+        mllm = QwenTextModel(api_key=os.getenv("DASHSCOPE_API_KEY"),
                          model=configs["QWEN_TEXT_MODEL"],
                          temperature=configs["TEMPERATURE"],
                          max_tokens=configs["MAX_TOKENS"],)
     elif model == "IMP":
         mllm = IMPModel()
     elif model == "Gemini":
-        mllm = GeminiModel(api_key=configs["GEMINI_API_KEY"],
+        mllm = GeminiModel(api_key=os.getenv('GEMINI_API_KEY'),
                            model=configs["GEMINI_MODEL"],
                            temperature=configs["TEMPERATURE"],
                            max_tokens=configs["MAX_TOKENS"])
     elif model == "Gemini-text":
-        mllm = GeminiTextModel(api_key=configs["GEMINI_API_KEY"],
+        mllm = GeminiTextModel(api_key=os.getenv('GEMINI_API_KEY'),
                            model=configs["GEMINI_TEXT_MODEL"],
                            temperature=configs["TEMPERATURE"],
                            max_tokens=configs["MAX_TOKENS"])
@@ -354,7 +355,7 @@ def parse_explore_rsp(rsp, detail=True):
             print_with_color("Function:", "yellow")
             print_with_color(function, "magenta")
         if "FINISH" in function:
-            return ["FINISH"]
+            return None, None, None, ["FINISH"]
         func_name = function.split("(")[0]
         parsed_func = []
         
@@ -423,7 +424,7 @@ def parse_explore_rsp_text(rsp, detail=False):
         print_with_color(rsp, "red")
         return ["ERROR"]
 
-def parse_grid_rsp(rsp, detail=False):
+def parse_grid_rsp(rsp, detail=True):
     try:
         observation = re.findall(r"Observation: (.*?)$", rsp, re.MULTILINE)[0]
         think = re.findall(r"Thought: (.*?)$", rsp, re.MULTILINE)[0]

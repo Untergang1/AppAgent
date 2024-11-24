@@ -13,6 +13,7 @@ def load_config(config_path="./config.yaml"):
     configs.update(yaml_data)
     return configs
 
+
 def print_with_color(text: str, color=""):
     if color == "red":
         print(Fore.RED + text)

@@ -20,7 +20,6 @@ def task_executor(configs):
 
     app = configs["app"]
     root_dir = configs["root_dir"]
-    detail = configs["detail"]
     device = configs["DEVICE"]
     task_desc = configs["desc"]
     max_rounds = configs["MAX_ROUNDS"]
@@ -51,8 +50,7 @@ def task_executor(configs):
     if not width and not height:
         print_with_color("ERROR: Invalid device size!", "red")
         sys.exit()
-    if detail:
-        print_with_color(f"Screen resolution of {device}: {width}x{height}", "yellow")
+    print_with_color(f"Screen resolution of {device}: {width}x{height}", "yellow")
 
     if not task_desc:
         print_with_color("Please enter the description of the task you want me to complete in a few sentences:", "blue")
@@ -140,8 +138,7 @@ def task_executor(configs):
 
         prompt = re.sub(r"<task_description>", task_desc, prompt)
         # prompt = re.sub(r"<last_act>", last_act, prompt)
-        if detail:
-            print_with_color("Thinking about what to do in the next step...", "yellow")
+        print_with_color("Thinking about what to do in the next step...", "yellow")
         status, rsp = mllm.get_model_response(prompt, [image])
         if status:
             with open(log_path, "a") as logfile:
@@ -149,25 +146,15 @@ def task_executor(configs):
                             "response": rsp}
                 logfile.write(json.dumps(log_item) + "\n")
             if grid_on:
-                res = parse_grid_rsp(rsp, detail)
+                res = parse_grid_rsp(rsp)
             else:
-                observation, intermediate_goal, action, parsed_function = parse_explore_rsp(rsp, detail)
+                observation, intermediate_goal, action, parsed_function = parse_explore_rsp(rsp)
             act_name = parsed_function[0]
             if act_name == "FINISH":
                 task_complete = True
                 break
             if act_name == "ERROR":
                 break
-
-            fun_desc = observation
-            pre_node_id = cur_node_id
-            cur_node_id = calculate_hash(xml_path)
-            db.creat_node(cur_node_id, fun_desc, xml_path)
-
-            if pre_node_id is not None and act_desc is not None:
-                db.create_relationship(pre_node_id, cur_node_id, act_desc)
-
-            act_desc = action
 
             if act_name == "tap":
                 _, area = parsed_function
@@ -224,6 +211,16 @@ def task_executor(configs):
                     break
             elif act_name == "grid":
                 grid_on = True
+
+            fun_desc = observation
+            pre_node_id = cur_node_id
+            cur_node_id = calculate_hash(xml_path)
+            db.create_or_update_node(cur_node_id, fun_desc, xml_path)
+
+            if pre_node_id is not None and act_desc is not None:
+                db.create_or_update_relationship(pre_node_id, cur_node_id, act_desc)
+
+            act_desc = action
 
             time.sleep(request_interval)
         else:
