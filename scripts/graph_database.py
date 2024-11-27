@@ -4,6 +4,11 @@ import hashlib
 from sentence_transformers import SentenceTransformer
 import neo4j
 
+from .utils import print_with_color
+
+
+log_color = 'blue'
+
 
 def calculate_hash(xml_path, algorithm="sha256"):
     hash_func = getattr(hashlib, algorithm)()
@@ -60,8 +65,7 @@ class GraphDatabase:
             SET n.embedding = $new_embedding, n.id = $new_hashid, n.fun_desc = $fun_desc, n.xml_path = $xml_path
             ''', node_id=similar_node['node_id'], new_embedding=new_embedding, new_hashid=hashid, fun_desc=fun_desc, xml_path=xml_path, database_=self.DB_NAME)
 
-            print(f"Node updated: Node with hashid {similar_node['node_id']} updated with new hashid {hashid}.")
-            print(similar_node['score'])
+            print_with_color(f"Node updated with score: {similar_node['score']:.3f}", color=log_color)
             return similar_node['node_id']
         else:
             # If no similar node or similarity is too low, create a new node
@@ -70,7 +74,7 @@ class GraphDatabase:
             SET n += {fun_desc: $fun_desc, embedding: $embedding, xml_path: $xml_path}
             ''', hashid=hashid, fun_desc=fun_desc, embedding=embedding, xml_path=xml_path, database_=self.DB_NAME)
 
-            print(f"New node created with hashid {hashid}.")
+            print_with_color(f"New node created.", color=log_color)
             return hashid
 
     def create_or_update_relationship(self, pre_id, post_id, action):
@@ -96,8 +100,7 @@ class GraphDatabase:
             SET r.action = $new_action, r.action_embedding = $updated_embedding
             ''', pre_id=pre_id, post_id=post_id, existing_action=similar_relationship[0]['existing_action'],
                                       new_action=action, updated_embedding=updated_embedding, database_=self.DB_NAME)
-            print(f"Relationship updated between {pre_id} and {post_id} with action: {action}.")
-            print(similar_relationship[0]['similarity'])
+            print_with_color(f"Relationship updated with score: {similar_relationship[0]['similarity']:.3f}.", color=log_color)
         else:
             # Create a new relationship if no similar one exists
             self.driver.execute_query('''
@@ -105,7 +108,7 @@ class GraphDatabase:
             CREATE (pre)-[r:act {action: $action, action_embedding: $action_embedding}]->(post)
             ''', pre_id=pre_id, post_id=post_id, action=action, action_embedding=action_embedding,
                                       database_=self.DB_NAME)
-            print(f"New relationship created between {pre_id} and {post_id} with action: {action}.")
+            print_with_color(f"New relationship created.", color=log_color)
 
     def query(self, cur_hashid, tar):
         query_embedding = self.embedding_model.encode(tar)
@@ -126,11 +129,11 @@ class GraphDatabase:
 
         count = len(related_paths)
         if count == 0:
-            print("No related paths found")
+            print_with_color("No related paths found", color=log_color)
         else:
-            print(f"{count} related paths found")
+            print_with_color(f"{count} related paths found", color=log_color)
             for record in related_paths:
-                print(record.data()['path'])
+                print_with_color(record.data()['path'], color=log_color)
 
         return [record.data()['path'] for record in related_paths]
 
@@ -145,7 +148,7 @@ def main():
     hashid2 = calculate_hash(xml_path2)
     db.create_or_update_node(hashid2, 'display setting', xml_path2)
 
-    db.create_relationship(hashid1, hashid2, "tap 2")
+    db.create_or_update_relationship(hashid1, hashid2, "tap 2")
     # db.query(hashid1, 'display settings')
     db.query(hashid1, 'display settings')
 
