@@ -16,6 +16,6 @@ export GEMINI_API_KEY=xxx
 运行：
 
 ```angular2html
-python run.py --desc 'turn on wifi' 
+python run.py --task 'turn on wifi' 
 ```
 

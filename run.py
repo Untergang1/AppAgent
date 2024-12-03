@@ -9,10 +9,9 @@ def parse_args(configs):
     arg_desc = " Run AppAgent"
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=arg_desc)
     parser.add_argument("--app", default="system")
-    parser.add_argument("--root_dir", default="./")
     parser.add_argument("--model", default=configs["DEFAULT_MODEL"], help="inference model")
     parser.add_argument("--detail", "-d", action="store_true", help="show detailed process")
-    parser.add_argument("--desc")
+    parser.add_argument("--task")
     args = vars(parser.parse_args())
     return args
 

@@ -85,7 +85,7 @@ Here are some possible action paths to consider：
 Now, given the documentation and the following labeled screenshot, you need to think and call the function needed to 
 proceed with the task(<task_description>). Your output should include four parts in the given format:
 
-Observation: <Describe what elements are in this interface and summarize what is the main function of this interface.
+Observation: <Describe what elements are in this interface (ignore specific tag numbers) and summarize what is the main function of this interface.
 Describe the page simply and comprehensively, without considering the task objectives.
 Focus on the structure and functionality of the page, and ignore volatile content such as ads and media.>
 Intermediate Goal: <Describe the desired functionality of the page you aim to reach within the next 3 to 5 steps.>

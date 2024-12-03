@@ -19,20 +19,16 @@ def task_executor(configs):
         sys.exit()
 
     app = configs["app"]
-    root_dir = configs["root_dir"]
     device = configs["DEVICE"]
-    task_desc = configs["desc"]
+    task_desc = configs["task"]
     max_rounds = configs["MAX_ROUNDS"]
     min_dist = configs["MIN_DIST"]
     request_interval = configs["REQUEST_INTERVAL"]
     dark_mode = configs["DARK_MODE"]
 
-    app_dir = os.path.join(os.path.join(root_dir, "apps"), app)
-    work_dir = os.path.join(root_dir, "tasks")
+    work_dir = os.path.join("./", "tasks")
     if not os.path.exists(work_dir):
         os.mkdir(work_dir)
-    auto_docs_dir = os.path.join(app_dir, "auto_docs")
-    demo_docs_dir = os.path.join(app_dir, "demo_docs")
     task_timestamp = int(time.time())
     dir_name = datetime.datetime.fromtimestamp(task_timestamp).strftime(f"task_{app}_%Y-%m-%d_%H-%M-%S")
     task_dir = os.path.join(work_dir, dir_name)
@@ -231,7 +227,7 @@ def task_executor(configs):
         return True, "success"
     else:
         if round_count == max_rounds:
-            msg = "max_rounds"
+            msg = "up to max_rounds"
         else:
             msg = "error"
         return False, msg
