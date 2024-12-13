@@ -1,9 +1,13 @@
+import os
+import argparse
+import time
+import datetime
+
 from scripts.utils import print_with_color, load_config
 from scripts.task_executor import task_executor
-import argparse
 
-import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 def parse_args(configs):
     arg_desc = " Run AppAgent"
@@ -15,9 +19,19 @@ def parse_args(configs):
     args = vars(parser.parse_args())
     return args
 
+
 configs = load_config()
 args = parse_args(configs)
 configs.update(args)
+
+timestamp = int(time.time())
+dir_name = datetime.datetime.fromtimestamp(timestamp).strftime(f"run_%Y-%m-%d_%H-%M-%S")
+log_dir = os.path.join(".", "task_logs", "run_logs", dir_name)
+os.makedirs(log_dir)
+configs['log_dir'] = log_dir
+
+configs["task_num"] = 0
+configs["freeze_db"] = False
 
 complete, msg = task_executor(configs)
 
