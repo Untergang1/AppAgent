@@ -1,0 +1,8 @@
+task_logs/
+scripts/__pycache__/
+scripts/.DS_Store
+tmp_test.py
+.ipynb_checkpoints
+.idea
+__pycache__
+.DS_Store

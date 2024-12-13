@@ -3,8 +3,22 @@ import cv2
 import pyshine as ps
 import os
 import yaml
+import logging
 
 from colorama import Fore, Style
+
+
+def get_logger(name):
+    logger = logging.getLogger(name)
+    logger.setLevel(level=logging.DEBUG)
+
+    file_handler = logging.FileHandler('output.log')
+    file_handler.setLevel(level=logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    return logger
+
 
 def load_config(config_path="./config.yaml"):
     configs = dict(os.environ)

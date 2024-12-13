@@ -1,4 +1,3 @@
-
 class Difficulty:
     EASY = 3
     MEDIUM = 6
@@ -6,7 +5,7 @@ class Difficulty:
 
 
 # task: Tuple[msg: str, max_rounds: int]
-tasks = [
+train_tasks = [
     ("take a photo", Difficulty.EASY),                  # EASY
     ("check new emails", Difficulty.EASY),
     ("check my plans in calender", Difficulty.EASY),
@@ -16,3 +15,8 @@ tasks = [
     ("search the weather tomorrow", Difficulty.MEDIUM),
     ("Send an empty email to to 330037594@qq.com.", Difficulty.HARD),   # HARD
 ]
+
+eval_tasks = [
+
+]
+

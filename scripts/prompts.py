@@ -94,7 +94,7 @@ Function: <The function call with the correct parameters to proceed with the tas
 there is nothing to be done, you should output FINISH. You cannot output anything else except a function call or FINISH 
 in this field.>
 
-You can only take one action at a time, so please directly call the function."""
+You can only take one action a time, so please directly call the function."""
 
 task_template_grid = """You are an agent that is trained to perform some basic tasks on a smartphone. You will be given 
 a smartphone screenshot overlaid by a grid. The grid divides the screenshot into small square areas. Each area is 

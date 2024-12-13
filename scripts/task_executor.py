@@ -11,6 +11,8 @@ from .and_controller import chose_device, AndroidController, traverse_tree
 from .model import parse_explore_rsp, parse_grid_rsp, chose_model
 from .utils import print_with_color, draw_bbox_multi, draw_grid
 from .graph_database import GraphDatabase, calculate_hash
+from .logger import get_logger
+
 
 def task_executor(configs):
     mllm = chose_model(configs)
@@ -18,22 +20,25 @@ def task_executor(configs):
         print_with_color(f"ERROR: Unsupported model type {configs['model']}!", "red")
         sys.exit()
 
-    app = configs["app"]
+    # app = configs["app"]
     device = configs["DEVICE"]
     task_desc = configs["task"]
+    task_num = configs["task_num"]
     max_rounds = configs["MAX_ROUNDS"]
     min_dist = configs["MIN_DIST"]
     request_interval = configs["REQUEST_INTERVAL"]
     dark_mode = configs["DARK_MODE"]
+    freeze_db = configs["freeze_db"]
+    log_dir = configs['log_dir']
 
-    work_dir = os.path.join("./", "tasks")
-    if not os.path.exists(work_dir):
-        os.mkdir(work_dir)
-    task_timestamp = int(time.time())
-    dir_name = datetime.datetime.fromtimestamp(task_timestamp).strftime(f"task_{app}_%Y-%m-%d_%H-%M-%S")
-    task_dir = os.path.join(work_dir, dir_name)
+    dir_name = f"task_{task_num}"
+    task_dir = os.path.join(log_dir, dir_name)
     os.mkdir(task_dir)
-    log_path = os.path.join(task_dir, f"log_{app}_{dir_name}.txt")
+    log_path = os.path.join(task_dir, f"task.log")
+
+    logger = get_logger(name="TaskExecutor", file_path=log_path)
+    logger.info(f"Task description: {task_desc}")
+    logger.info(f"freeze graph database: {freeze_db}")
 
     print_with_color("proceed with graph database.", "yellow")
     db = GraphDatabase()
@@ -90,6 +95,7 @@ def task_executor(configs):
 
     while round_count < max_rounds:
         round_count += 1
+        logger.info(f"Round {round_count}")
         print_with_color(f"Round {round_count}", "yellow")
         screenshot_path = controller.get_screenshot(f"{dir_name}_{round_count}", task_dir)
         xml_path = controller.get_xml(f"{dir_name}_{round_count}", task_dir)
@@ -133,14 +139,13 @@ def task_executor(configs):
             prompt = re.sub(r"<related_paths>", paths_doc, prompts.task_template)
 
         prompt = re.sub(r"<task_description>", task_desc, prompt)
-        # prompt = re.sub(r"<last_act>", last_act, prompt)
+        logger.info(f"PROMPT:\n{prompt}")
         print_with_color("Thinking about what to do in the next step...", "yellow")
+
         status, rsp = mllm.get_model_response(prompt, [image])
+        logger.info(f"RESPONSE:\n{rsp}")
+
         if status:
-            with open(log_path, "a") as logfile:
-                log_item = {"step": round_count, "prompt": prompt, "image": f"{dir_name}_{round_count}_labeled.png",
-                            "response": rsp}
-                logfile.write(json.dumps(log_item) + "\n")
             if grid_on:
                 res = parse_grid_rsp(rsp)
             else:
@@ -211,10 +216,11 @@ def task_executor(configs):
             fun_desc = observation
             pre_node_id = cur_node_id
             cur_node_id = calculate_hash(xml_path)
-            db.create_or_update_node(cur_node_id, fun_desc, xml_path)
 
-            if pre_node_id is not None and act_desc is not None:
-                db.create_or_update_relationship(pre_node_id, cur_node_id, act_desc)
+            if not freeze_db:
+                db.create_or_update_node(cur_node_id, fun_desc, xml_path)
+                if pre_node_id is not None and act_desc is not None:
+                    db.create_or_update_relationship(pre_node_id, cur_node_id, act_desc)
 
             act_desc = action
 
