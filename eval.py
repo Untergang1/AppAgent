@@ -3,6 +3,7 @@ import argparse
 import os
 import datetime
 import time
+import logging
 
 from scripts.utils import print_with_color, load_config
 from tasks import eval_tasks
@@ -32,6 +33,7 @@ dir_name = datetime.datetime.fromtimestamp(timestamp).strftime(f"eval_{db_str}%Y
 log_dir = os.path.join(".", "task_logs", "eval_logs", dir_name)
 os.makedirs(log_dir)
 set_logger("Agent", file_path=os.path.join(log_dir, "task.log"))
+logger = logging.getLogger("Agent")
 
 device = configs["DEVICE"]
 controller = AndroidController(device)
@@ -57,6 +59,7 @@ for i in range(start, len(eval_tasks)):
             print_with_color(msg, "red")
 
     except Exception as e:
+        logger.error(f"An error occurred while executing task: \"{task_desc}\". Error: {e}")
         print_with_color(f"An  error occurred while executing task: \"{task_desc}\". Error: {e}", color="red")
 
     controller.force_stop_app()

@@ -2,11 +2,14 @@ import os
 import subprocess
 import xml.etree.ElementTree as ET
 import sys
+import logging
 
 from .utils import print_with_color, load_config
 
 
 configs = load_config()
+
+logger = logging.getLogger("Agent")
 
 
 class AndroidElement:
@@ -20,6 +23,7 @@ def execute_adb(adb_command):
     result = subprocess.run(adb_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode == 0:
         return result.stdout.strip()
+    logger.error(f"Command execution failed: {adb_command}")
     print_with_color(f"Command execution failed: {adb_command}", "red")
     print_with_color(result.stderr, "red")
     return "ERROR"
@@ -211,9 +215,12 @@ class AndroidController:
         return None
 
     def force_stop_app(self):
+        abd_command = f"adb -s {self.device} shell input keyevent KEYCODE_BACK"
+        execute_adb(abd_command)
         package = self.get_current_package()
         if package:
-            subprocess.run(f"adb -s {self.device} shell am force-stop {package}", shell=True)
+            adb_command = f"adb -s {self.device} shell am force-stop {package}"
+            execute_adb(adb_command)
             print_with_color(f"{package} has been stopped.", color='yellow')
         else:
             print_with_color("can't find current package.", color='red')
