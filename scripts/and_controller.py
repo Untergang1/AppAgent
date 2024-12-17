@@ -199,3 +199,21 @@ class AndroidController:
         adb_command = f"adb -s {self.device} shell input swipe {start_x} {start_x} {end_x} {end_y} {duration}"
         ret = execute_adb(adb_command)
         return ret
+
+    def get_current_package(self):
+        adb_command = f"adb -s {self.device} shell dumpsys window | grep mCurrentFocus"
+        ret = execute_adb(adb_command)
+        if ret:
+            parts = ret.split("/")
+            if parts:
+                package = parts[0].split()[-1]
+                return package
+        return None
+
+    def force_stop_app(self):
+        package = self.get_current_package()
+        if package:
+            subprocess.run(f"adb -s {self.device} shell am force-stop {package}", shell=True)
+            print_with_color(f"{package} has been stopped.", color='yellow')
+        else:
+            print_with_color("can't find current package.", color='red')

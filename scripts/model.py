@@ -305,7 +305,7 @@ class IMPModel(BaseModel):
         return True, message
 
 def chose_model(configs):
-    model = configs["model"]
+    model = configs["MODEL"]
     mllm=None
     if model == "OpenAI":
         mllm = OpenAIModel(base_url=configs["OPENAI_API_BASE"],

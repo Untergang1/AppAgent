@@ -110,21 +110,21 @@ class GraphDatabase:
                                       database_=self.DB_NAME)
             print_with_color(f"New relationship created.", color=log_color)
 
-    def query(self, cur_hashid, tar):
+    def query_realted_paths(self, cur_hashid, tar):
         query_embedding = self.embedding_model.encode(tar)
         related_paths, _, _ = self.driver.execute_query('''
             CALL db.index.vector.queryNodes('fun_desc_embedding', 3, $query_embedding)
             YIELD node, score
-            WHERE score > 0.7
+            WHERE score > 0.6
             WITH node.id AS tar_id
             CALL (tar_id) {
                 MATCH p = SHORTEST 1 (start:XMLNode {id: $cur_hashid})--+(end:XMLNode {id: tar_id})
                 RETURN p
             }
             RETURN reduce(result = "", i IN range(0, length(p)-1) | 
-                result + "(function description of screen node:" + nodes(p)[i].fun_desc + 
+                result + "(description of screen node:" + nodes(p)[i].fun_desc + 
                 ")-[action:" + relationships(p)[i].action + "]->"
-            ) + "(function description of the end screen node:" + nodes(p)[-1].fun_desc + ")" AS path
+            ) + "(description of the end screen node:" + nodes(p)[-1].fun_desc + ")" AS path
             ''',cur_hashid=cur_hashid, query_embedding=query_embedding, database_=self.DB_NAME)
 
         count = len(related_paths)
@@ -136,6 +136,10 @@ class GraphDatabase:
                 print_with_color(record.data()['path'], color=log_color)
 
         return [record.data()['path'] for record in related_paths]
+
+    def clear_database(self):
+        with self.driver.session() as session:
+            session.run("MATCH (n) DETACH DELETE n")
 
 
 def main():
@@ -149,8 +153,7 @@ def main():
     db.create_or_update_node(hashid2, 'display setting', xml_path2)
 
     db.create_or_update_relationship(hashid1, hashid2, "tap 2")
-    # db.query(hashid1, 'display settings')
-    db.query(hashid1, 'display settings')
+    db.query_realted_paths(hashid1, 'display settings')
 
 
 if __name__ == "__main__":

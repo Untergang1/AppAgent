@@ -1,46 +1,46 @@
-import ast
-import datetime
-import json
 import os
 import re
 import sys
 import time
+from typing import Dict
+import logging
 
 from . import prompts
 from .and_controller import chose_device, AndroidController, traverse_tree
 from .model import parse_explore_rsp, parse_grid_rsp, chose_model
 from .utils import print_with_color, draw_bbox_multi, draw_grid
 from .graph_database import GraphDatabase, calculate_hash
-from .logger import get_logger
 
 
-def task_executor(configs):
+def task_executor(task: Dict, log_dir: str, configs: Dict):
     mllm = chose_model(configs)
     if mllm == None:
-        print_with_color(f"ERROR: Unsupported model type {configs['model']}!", "red")
+        print_with_color(f"ERROR: Unsupported model type {configs['MODEL']}!", "red")
         sys.exit()
 
-    # app = configs["app"]
+    task_desc = task["task_desc"]
+    max_rounds = task["max_rounds"]
+    task_num = task["task_num"]
+
     device = configs["DEVICE"]
-    task_desc = configs["task"]
-    task_num = configs["task_num"]
-    max_rounds = configs["MAX_ROUNDS"]
     min_dist = configs["MIN_DIST"]
     request_interval = configs["REQUEST_INTERVAL"]
     dark_mode = configs["DARK_MODE"]
-    freeze_db = configs["freeze_db"]
-    log_dir = configs['log_dir']
+    freeze_db = configs["FREEZE_DB"]
+    use_db = configs["USE_DB"]
 
     dir_name = f"task_{task_num}"
     task_dir = os.path.join(log_dir, dir_name)
     os.mkdir(task_dir)
-    log_path = os.path.join(task_dir, f"task.log")
 
-    logger = get_logger(name="TaskExecutor", file_path=log_path)
-    logger.info(f"Task description: {task_desc}")
-    logger.info(f"freeze graph database: {freeze_db}")
+    logger = logging.getLogger("Agent")
+    logger.info(f"Task {task_num}: {task_desc}")
 
-    print_with_color("proceed with graph database.", "yellow")
+    if use_db:
+        print_with_color("proceed WITH graph database.", "yellow")
+    else:
+        print_with_color("proceed WITHOUT graph database.", "yellow")
+
     db = GraphDatabase()
 
     if not device:
@@ -52,10 +52,6 @@ def task_executor(configs):
         print_with_color("ERROR: Invalid device size!", "red")
         sys.exit()
     print_with_color(f"Screen resolution of {device}: {width}x{height}", "yellow")
-
-    if not task_desc:
-        print_with_color("Please enter the description of the task you want me to complete in a few sentences:", "blue")
-        task_desc = input()
 
     round_count = 0
     # last_act = "None"
@@ -128,18 +124,27 @@ def task_executor(configs):
                             dark_mode=dark_mode)
             image = os.path.join(task_dir, f"{dir_name}_{round_count}_labeled.png")
 
-            tar = task_desc if intermediate_goal is None else intermediate_goal
-            related_paths = db.query(cur_node_id, tar)
-            if len(related_paths) == 0:
-                paths_doc = ""
+            pre_node_id = cur_node_id
+            cur_node_id = calculate_hash(xml_path)
+
+            if use_db:
+                tar = task_desc if intermediate_goal is None else intermediate_goal
+                related_paths = db.query_realted_paths(cur_node_id, tar)
+                if len(related_paths) == 0:
+                    paths_doc = ""
+                    logger.info("No related path found")
+                else:
+                    paths_doc = ""
+                    for i, path in enumerate(related_paths, start=1):
+                        paths_doc += f"{i}: {path}\n"
+                    logger.info(f"Find related paths:\n{paths_doc}")
+                    paths_doc = "Here are some possible action paths:\n" + paths_doc
             else:
-                paths_doc = "Here are some possible action paths:\n"
-                for i, path in enumerate(related_paths, start=1):
-                    paths_doc += f"{i}: {path}\n"
+                paths_doc = ""
+
             prompt = re.sub(r"<related_paths>", paths_doc, prompts.task_template)
 
         prompt = re.sub(r"<task_description>", task_desc, prompt)
-        logger.info(f"PROMPT:\n{prompt}")
         print_with_color("Thinking about what to do in the next step...", "yellow")
 
         status, rsp = mllm.get_model_response(prompt, [image])
@@ -214,8 +219,6 @@ def task_executor(configs):
                 grid_on = True
 
             fun_desc = observation
-            pre_node_id = cur_node_id
-            cur_node_id = calculate_hash(xml_path)
 
             if not freeze_db:
                 db.create_or_update_node(cur_node_id, fun_desc, xml_path)
@@ -230,10 +233,13 @@ def task_executor(configs):
             break
 
     if task_complete:
+        logger.info(f"Task completed in {round_count} rounds")
         return True, "success"
     else:
         if round_count == max_rounds:
             msg = "up to max_rounds"
+            logger.info("up to max_rounds")
         else:
             msg = "error"
+            logger.error("Task exit with error")
         return False, msg

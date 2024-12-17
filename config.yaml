@@ -1,4 +1,4 @@
-DEFAULT_MODEL: "Gemini"  # The type of multi-modal LLM you would like to use to power the AppAgent, must be either OpenAI or Qwen
+MODEL: "Gemini"  # The type of multi-modal LLM you would like to use to power the AppAgent, must be either OpenAI or Qwen
 
 OPENAI_API_BASE: "https://api.openai.com/v1/chat/completions"
 OPENAI_API_KEY: "sk-"  # Set the value to sk-xxx if you host the openai interface for open llm model
@@ -22,3 +22,7 @@ DARK_MODE: false  # Set this to true if your app is in dark mode to enhance the 
 MIN_DIST: 30  # The minimum distance between elements to prevent overlapping during the labeling process
 
 DEVICE: "emulator-5554"
+
+# database default settings
+USE_DB: true
+FREEZE_DB: true
