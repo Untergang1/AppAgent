@@ -102,3 +102,8 @@ train_tasks = [task for app in all_app_tasks.values() for task in app['train']] 
 
 eval_tasks = [task for app in all_app_tasks.values() for task in app['eval']]       # 28 tasks
 
+test_tasks = [
+    ("turn on wifi", 4),
+    ("add an event to my calendar", 5),
+    ("open Gmail and send a new email to test@example.com", 4),
+]
