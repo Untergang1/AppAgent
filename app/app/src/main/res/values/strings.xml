@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">UI Agent</string>
+    <string name="server_address">http://10.249.44.46:8000</string>
+</resources>
